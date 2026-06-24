@@ -1,0 +1,243 @@
+{% extends "layout.html" %}
+{% block title %}Tạo hợp đồng mới{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Tạo hợp đồng mới</h1>
+</div>
+
+<!-- Step indicator -->
+<div style="display:flex;align-items:center;gap:0;margin-bottom:36px;">
+  <div class="step-dot active" id="dot1">1</div>
+  <div class="step-line" id="line1"></div>
+  <div class="step-dot" id="dot2">2</div>
+  <div class="step-line" id="line2"></div>
+  <div class="step-dot" id="dot3">3</div>
+</div>
+
+<!-- ── STEP 1: Upload Excel ── -->
+<div id="step1">
+  {% if not templates %}
+  <div style="background:var(--danger-lt);border:1px solid #fecaca;border-radius:8px;padding:14px 16px;margin-bottom:20px;font-size:13px;color:var(--danger);">
+    ⚠️ Chưa có mẫu hợp đồng nào.
+    <a href="{{ url_for('templates_page') }}" style="color:var(--danger);font-weight:600;">Upload mẫu trước →</a>
+  </div>
+  {% endif %}
+
+  <div class="upload-area" id="upload-box">
+    <input type="file" id="excel-input" accept=".xlsx,.xls"
+           onchange="onExcelPick(this)" {% if not templates %}disabled{% endif %}>
+    <div class="upload-icon">📊</div>
+    <div class="upload-text">Kéo thả hoặc bấm để chọn file Excel</div>
+    <div class="upload-hint">.xlsx — mỗi dòng = 1 hợp đồng</div>
+    <div class="upload-filename hidden" id="upload-fname"></div>
+  </div>
+
+  <div id="err1" style="margin-top:12px;" class="hidden"></div>
+
+  <div class="flex-end mt-4">
+    <button class="btn btn-primary" id="btn-next" onclick="doUpload()" disabled>
+      Xem trước dữ liệu →
+    </button>
+  </div>
+</div>
+
+<!-- ── STEP 2: Preview + Configure ── -->
+<div id="step2" class="hidden">
+
+  <!-- Info: biến tên -->
+  <div id="var-info"
+       style="background:var(--accent-lt);border:1px solid #bfdbfe;border-radius:8px;
+              padding:12px 16px;margin-bottom:20px;font-size:13px;color:#1e40af;">
+    <strong style="display:block;margin-bottom:6px;">📌 Tên biến tương ứng với mẫu Word</strong>
+    <div id="var-tags" style="display:flex;flex-wrap:wrap;gap:6px;margin-top:4px;"></div>
+  </div>
+
+  <!-- Info -->
+  <div style="background:var(--success-lt);border:1px solid #a8d5b9;border-radius:8px;
+              padding:10px 14px;font-size:13px;color:#065f46;margin-bottom:20px;">
+    ✅ Mỗi dòng sẽ tự động gen PDF cho <strong>tất cả mẫu đã setup</strong>.
+    Tên file: <code>TenKhachHang_MAMAU.pdf</code>
+  </div>
+
+  <!-- Preview table -->
+  <div class="section-title">Xem trước dữ liệu Excel</div>
+  <div class="table-wrap" style="margin-bottom:8px;">
+    <table id="preview-tbl"></table>
+  </div>
+  <div class="text-tertiary" id="preview-meta" style="font-size:12px;margin-bottom:24px;"></div>
+
+  <div style="display:flex;justify-content:space-between;align-items:center;">
+    <button class="btn btn-ghost" onclick="goStep(1)">← Chọn file khác</button>
+    <button class="btn btn-primary" onclick="doGenerate()">Tạo hợp đồng →</button>
+  </div>
+</div>
+
+<!-- ── STEP 3: Generating / Result ── -->
+<div id="step3" class="hidden">
+
+  <!-- Loading -->
+  <div id="gen-loading" style="text-align:center;padding:60px 20px;">
+    <div class="spinner" style="margin:0 auto 20px;"></div>
+    <div style="font-size:15px;font-weight:500;margin-bottom:8px;">Đang tạo hợp đồng...</div>
+    <div class="text-tertiary" style="font-size:13px;">
+      Microsoft Word đang xử lý từng file. Vui lòng không đóng cửa sổ này.
+    </div>
+  </div>
+
+  <!-- Result -->
+  <div id="gen-result" class="hidden" style="text-align:center;padding:40px 20px;">
+    <div style="font-size:64px;font-weight:800;color:var(--success);line-height:1;" id="res-count">0</div>
+    <div style="font-size:15px;color:var(--text-2);margin:8px 0 28px;">hợp đồng đã được tạo</div>
+
+    <div id="res-errors"
+         style="background:var(--danger-lt);border:1px solid #fecaca;border-radius:8px;
+                padding:12px 16px;text-align:left;font-size:13px;color:var(--danger);
+                margin-bottom:20px;max-height:160px;overflow-y:auto;"
+         class="hidden"></div>
+
+    <div style="display:flex;justify-content:center;gap:12px;">
+      <a href="{{ url_for('contracts') }}" class="btn btn-success">📋 Xem danh sách hợp đồng</a>
+      <button class="btn btn-ghost" onclick="location.reload()">Tạo lô mới</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<style>
+.step-dot {
+  width: 32px; height: 32px; border-radius: 50%;
+  border: 2px solid var(--border);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 600; color: var(--text-3);
+  flex-shrink: 0; background: #fff;
+}
+.step-dot.active { border-color: var(--accent); color: var(--accent); }
+.step-dot.done   { border-color: var(--success); background: var(--success); color: #fff; }
+.step-line {
+  flex: 1; height: 2px; background: var(--border); max-width: 80px;
+}
+.step-line.done { background: var(--success); }
+</style>
+
+<script>
+let selectedFile = null;
+let tempPath     = null;
+let headers      = [];
+
+// ── Step 1: pick file ──
+function onExcelPick(input) {
+  const file = input.files[0];
+  if (!file) return;
+  selectedFile = file;
+
+  const box   = document.getElementById('upload-box');
+  const fname = document.getElementById('upload-fname');
+  box.classList.add('has-file');
+  fname.textContent = file.name;
+  fname.classList.remove('hidden');
+  document.getElementById('btn-next').disabled = false;
+  hide('err1');
+}
+
+async function doUpload() {
+  const btn = document.getElementById('btn-next');
+  btn.disabled = true; btn.textContent = 'Đang đọc file...';
+
+  const fd = new FormData();
+  fd.append('excel', selectedFile);
+
+  try {
+    const r = await fetch('/api/upload-excel', { method: 'POST', body: fd });
+    const d = await r.json();
+    if (!r.ok) { showErr('err1', d.error); btn.disabled = false; btn.textContent = 'Xem trước dữ liệu →'; return; }
+
+    tempPath = d.temp_path;
+    headers  = d.headers;
+
+    // var tags
+    document.getElementById('var-tags').innerHTML =
+      headers.map(h => '<span style="background:#fff;border:1px solid #bfdbfe;border-radius:4px;' +
+        'padding:2px 8px;font-size:12px;font-family:monospace;">{{ ' + d.var_names[h] + ' }}</span>').join('');
+
+
+    // preview table
+    const tbl = document.getElementById('preview-tbl');
+    tbl.innerHTML =
+      `<thead><tr>${headers.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead>` +
+      `<tbody>${d.preview.map(row =>
+        `<tr>${row.map(v => `<td>${esc(v)}</td>`).join('')}</tr>`
+      ).join('')}</tbody>`;
+    document.getElementById('preview-meta').textContent =
+      `Hiển thị ${d.preview.length} dòng đầu / tổng ${d.total_rows} dòng dữ liệu`;
+
+    goStep(2);
+  } catch(e) {
+    showErr('err1', 'Lỗi kết nối: ' + e.message);
+    btn.disabled = false; btn.textContent = 'Xem trước dữ liệu →';
+  }
+}
+
+// ── Step 2 → Generate ──
+async function doGenerate() {
+  goStep(3);
+  show('gen-loading'); hide('gen-result');
+
+  try {
+    const r = await fetch('/api/generate', {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({
+        temp_path: tempPath,
+      })
+    });
+    const d = await r.json();
+
+    hide('gen-loading'); show('gen-result');
+    document.getElementById('res-count').textContent = d.count || 0;
+
+    if (d.errors && d.errors.length) {
+      const el = document.getElementById('res-errors');
+      el.innerHTML = `<strong>⚠️ ${d.errors.length} dòng bị lỗi:</strong><br>` + d.errors.join('<br>');
+      show('res-errors');
+    }
+    if (!r.ok) {
+      document.getElementById('res-errors').innerHTML = '❌ ' + (d.error || 'Có lỗi xảy ra');
+      show('res-errors');
+    }
+  } catch(e) {
+    hide('gen-loading'); show('gen-result');
+    document.getElementById('res-count').textContent = '0';
+    const el = document.getElementById('res-errors');
+    el.textContent = 'Lỗi kết nối: ' + e.message;
+    show('res-errors');
+  }
+}
+
+// ── Helpers ──
+function goStep(n) {
+  [1,2,3].forEach(i => {
+    const el = document.getElementById('step' + i);
+    if (el) el.classList.toggle('hidden', i !== n);
+  });
+  [1,2,3].forEach(i => {
+    const dot  = document.getElementById('dot' + i);
+    const line = document.getElementById('line' + i);
+    dot.classList.remove('active', 'done');
+    if (i < n)  dot.classList.add('done');
+    if (i === n) dot.classList.add('active');
+    if (line) line.classList.toggle('done', i < n);
+  });
+}
+
+function showErr(id, msg) {
+  const el = document.getElementById(id);
+  el.innerHTML = `<div style="background:var(--danger-lt);border:1px solid #fecaca;border-radius:8px;padding:12px 16px;font-size:13px;color:var(--danger);">⚠️ ${msg}</div>`;
+  el.classList.remove('hidden');
+}
+function show(id) { document.getElementById(id).classList.remove('hidden'); }
+function hide(id) { document.getElementById(id).classList.add('hidden'); }
+function esc(s)   { return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
+</script>
+{% endblock %}

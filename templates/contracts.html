@@ -1,0 +1,86 @@
+{% extends "layout.html" %}
+{% block title %}Danh sách hợp đồng{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Danh sách hợp đồng</h1>
+  <a href="{{ url_for('generate_page') }}" class="btn btn-primary">➕ Tạo mới</a>
+</div>
+
+<!-- Toolbar: search + filter -->
+<div class="toolbar">
+  <form method="GET" action="{{ url_for('contracts') }}" style="display:flex;gap:12px;flex:1;">
+    <input type="search" name="q" value="{{ search }}"
+           placeholder="🔍  Tìm theo tên hợp đồng..."
+           style="flex:1;" onchange="this.form.submit()">
+
+    <select name="template" style="width:200px;" onchange="this.form.submit()">
+      <option value="">Tất cả mẫu</option>
+      {% for t in templates %}
+      <option value="{{ t.code }}" {% if selected_template == t.code %}selected{% endif %}>
+        {{ t.name }} ({{ t.code }})
+      </option>
+      {% endfor %}
+    </select>
+
+    {% if search or selected_template %}
+    <a href="{{ url_for('contracts') }}" class="btn btn-ghost btn-sm">✕ Xóa bộ lọc</a>
+    {% endif %}
+  </form>
+</div>
+
+{% if contracts %}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Tên hợp đồng</th>
+        <th>Mẫu sử dụng</th>
+        <th>Ngày tạo</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for c in contracts %}
+      <tr class="clickable" onclick="location.href='{{ url_for('contract_detail', id=c.id) }}'">
+        <td><strong>{{ c.name }}</strong></td>
+        <td>
+          <span class="badge badge-blue">{{ c.template_code }}</span>
+          <span class="text-secondary" style="margin-left:6px;font-size:13px;">{{ c.template_name }}</span>
+        </td>
+        <td class="text-secondary">{{ c.created_at[:16].replace('T',' ') }}</td>
+        <td style="text-align:right;" onclick="event.stopPropagation()">
+          <a href="{{ url_for('download_contract', id=c.id) }}"
+             class="btn btn-ghost btn-sm" style="margin-right:6px;">⬇ PDF</a>
+          <form id="del-{{ c.id }}" method="POST"
+                action="{{ url_for('delete_contract', id=c.id) }}" style="display:inline;">
+            <button type="button" class="btn btn-danger btn-sm"
+                    onclick="confirmDelete('del-{{ c.id }}', 'Xóa hợp đồng \"{{ c.name }}\"?')">
+              Xóa
+            </button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<div class="text-tertiary" style="font-size:12px;margin-top:8px;">
+  {{ contracts|length }} hợp đồng{% if search or selected_template %} (đang lọc){% endif %}
+</div>
+
+{% else %}
+<div class="empty-state">
+  <div class="empty-icon">📋</div>
+  {% if search or selected_template %}
+    <div class="empty-title">Không tìm thấy kết quả</div>
+    <div class="empty-desc">Thử tìm kiếm với từ khóa khác hoặc xóa bộ lọc</div>
+    <a href="{{ url_for('contracts') }}" class="btn btn-ghost">Xóa bộ lọc</a>
+  {% else %}
+    <div class="empty-title">Chưa có hợp đồng nào</div>
+    <div class="empty-desc">Upload file Excel và chọn mẫu để tạo hợp đồng đầu tiên</div>
+    <a href="{{ url_for('generate_page') }}" class="btn btn-primary">➕ Tạo hợp đồng đầu tiên</a>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}

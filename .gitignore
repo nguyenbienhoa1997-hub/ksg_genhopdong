@@ -1,0 +1,20 @@
+# Python
+venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Database
+data/
+*.db
+
+# Uploads (templates Word + PDFs sinh ra — không push lên)
+uploads/
+
+# Logs
+*.log
+temp/
+
+# OS
+.DS_Store
+Thumbs.db

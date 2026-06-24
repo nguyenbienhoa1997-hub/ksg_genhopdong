@@ -1,0 +1,109 @@
+{% extends "layout.html" %}
+{% block title %}{{ contract.name }}{% endblock %}
+
+{% block content %}
+<a href="{{ url_for('contracts') }}" class="back-link">← Danh sách hợp đồng</a>
+
+<div class="page-header">
+  <h1 class="page-title">{{ contract.name }}</h1>
+  <div style="display:flex;gap:8px;">
+    <a href="{{ url_for('download_contract', id=contract.id) }}" class="btn btn-success">
+      ⬇ Tải PDF
+    </a>
+    <form id="del-form" method="POST"
+          action="{{ url_for('delete_contract', id=contract.id) }}" style="display:inline;">
+      <button type="button" class="btn btn-danger"
+              onclick="confirmDelete('del-form', 'Xóa hợp đồng này không thể khôi phục. Tiếp tục?')">
+        Xóa
+      </button>
+    </form>
+  </div>
+</div>
+
+<!-- Tabs -->
+<div class="tabs">
+  <div class="tab active" id="tab-info" onclick="switchTab('info')">Thông tin</div>
+  <div class="tab" id="tab-hd"   onclick="switchTab('hd')">Hợp đồng</div>
+</div>
+
+<!-- Tab: Thông tin -->
+<div id="panel-info">
+  <!-- Meta -->
+  <div class="section">
+    <div class="section-title">Thông tin chung</div>
+    <div class="detail-grid">
+      <div>
+        <div class="detail-label">Tên hợp đồng</div>
+        <div class="detail-value">{{ contract.name }}</div>
+      </div>
+      <div>
+        <div class="detail-label">Mẫu sử dụng</div>
+        <div class="detail-value">
+          <span class="badge badge-blue">{{ contract.template_code }}</span>
+          {{ contract.template_name }}
+        </div>
+      </div>
+      <div>
+        <div class="detail-label">Ngày tạo</div>
+        <div class="detail-value">{{ contract.created_at[:16].replace('T', ' ') }}</div>
+      </div>
+      <div>
+        <div class="detail-label">Batch ID</div>
+        <div class="detail-value text-tertiary" style="font-size:12px;font-family:monospace;">
+          {{ contract.batch_id }}
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <!-- Dữ liệu từ Excel -->
+  <div class="section">
+    <div class="section-title">Dữ liệu từ Excel</div>
+    {% if row_data %}
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th style="width:40%;">Trường</th><th>Giá trị</th></tr>
+        </thead>
+        <tbody>
+          {% for key, val in row_data.items() %}
+          <tr>
+            <td class="text-secondary">{{ key }}</td>
+            <td>{{ val if val else '—' }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+    {% else %}
+    <p class="text-tertiary">Không có dữ liệu</p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Tab: Hợp đồng -->
+<div id="panel-hd" class="hidden" style="text-align:center;padding:60px 20px;">
+  <div style="font-size:48px;margin-bottom:20px;">📄</div>
+  <div style="font-size:16px;font-weight:500;margin-bottom:8px;">{{ contract.name }}.pdf</div>
+  <div class="text-secondary" style="font-size:13px;margin-bottom:28px;">
+    Bấm nút bên dưới để tải file PDF về máy
+  </div>
+  <a href="{{ url_for('download_contract', id=contract.id) }}" class="btn btn-success"
+     style="font-size:15px;padding:12px 28px;">
+    ⬇ Tải PDF về
+  </a>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function switchTab(name) {
+  ['info','hd'].forEach(t => {
+    document.getElementById('tab-' + t).classList.toggle('active', t === name);
+    document.getElementById('panel-' + t).classList.toggle('hidden', t !== name);
+  });
+}
+</script>
+{% endblock %}

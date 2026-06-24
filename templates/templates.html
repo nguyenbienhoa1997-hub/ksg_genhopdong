@@ -1,0 +1,122 @@
+{% extends "layout.html" %}
+{% block title %}Quản lý mẫu{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Quản lý mẫu hợp đồng</h1>
+  <button class="btn btn-primary" onclick="openModal()">+ Upload mẫu mới</button>
+</div>
+
+<!-- Hướng dẫn -->
+<div style="background:var(--accent-lt);border:1px solid #bfdbfe;border-radius:8px;padding:14px 16px;margin-bottom:24px;font-size:13px;color:#1e40af;">
+  <strong style="display:block;margin-bottom:6px;">📌 Cách đặt biến trong file Word</strong>
+  Dùng cú pháp <code>{{ TEN_BIEN }}</code> trong file Word, trong đó <code>TEN_BIEN</code> là tên cột Excel
+  (dấu cách và ký tự đặc biệt tự động chuyển thành dấu <code>_</code>).<br>
+  Ví dụ: cột <code>Tên khách hàng</code> → biến <code>{{ Tên_khách_hàng }}</code>
+</div>
+
+{% if templates %}
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th>Tên mẫu</th>
+        <th>Mã mẫu</th>
+        <th>File gốc</th>
+        <th>Ngày upload</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in templates %}
+      <tr>
+        <td><strong>{{ t.name }}</strong></td>
+        <td><span class="badge badge-blue">{{ t.code }}</span></td>
+        <td class="text-secondary">{{ t.filename }}</td>
+        <td class="text-secondary">{{ t.created_at[:10] }}</td>
+        <td style="text-align:right;">
+          <form id="del-{{ t.id }}" method="POST"
+                action="{{ url_for('delete_template', id=t.id) }}" style="display:inline;">
+            <button type="button" class="btn btn-danger btn-sm"
+                    onclick="confirmDelete('del-{{ t.id }}', 'Xóa mẫu \"{{ t.name }}\"? Các hợp đồng đã tạo sẽ không bị ảnh hưởng.')">
+              Xóa
+            </button>
+          </form>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="empty-state">
+  <div class="empty-icon">📝</div>
+  <div class="empty-title">Chưa có mẫu hợp đồng nào</div>
+  <div class="empty-desc">Upload file Word (.docx) đã có biến <code>{{ TEN_BIEN }}</code> để bắt đầu</div>
+  <button class="btn btn-primary" onclick="openModal()">+ Upload mẫu đầu tiên</button>
+</div>
+{% endif %}
+
+<!-- Modal upload -->
+<div class="modal-overlay hidden" id="modal">
+  <div class="modal">
+    <div class="modal-title">Upload mẫu hợp đồng mới</div>
+    <form method="POST" action="{{ url_for('upload_template') }}" enctype="multipart/form-data">
+
+      <div class="form-group">
+        <label class="form-label">Tên mẫu</label>
+        <input type="text" name="name" placeholder="Ví dụ: Hợp đồng mua bán" required>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Mã mẫu</label>
+        <input type="text" name="code" placeholder="Ví dụ: HDMB" required
+               style="text-transform:uppercase;"
+               oninput="this.value=this.value.toUpperCase()">
+        <div class="form-hint">
+          Mã này dùng trong cột Excel để chọn mẫu. Phải là duy nhất.
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">File Word (.docx)</label>
+        <div class="upload-area" id="upload-box">
+          <input type="file" name="file" accept=".docx" required
+                 onchange="onFileSelect(this)">
+          <div class="upload-icon">📄</div>
+          <div class="upload-text">Kéo thả hoặc bấm để chọn file</div>
+          <div class="upload-hint">.docx — tối đa 20MB</div>
+          <div class="upload-filename hidden" id="upload-fname"></div>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Hủy</button>
+        <button type="submit" class="btn btn-primary">Upload mẫu</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openModal()  { document.getElementById('modal').classList.remove('hidden'); }
+function closeModal() { document.getElementById('modal').classList.add('hidden'); }
+
+// Close on overlay click
+document.getElementById('modal').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+function onFileSelect(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const box   = document.getElementById('upload-box');
+  const fname = document.getElementById('upload-fname');
+  box.classList.add('has-file');
+  fname.textContent = file.name;
+  fname.classList.remove('hidden');
+}
+</script>
+{% endblock %}

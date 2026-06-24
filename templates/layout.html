@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Hợp Đồng{% endblock %}</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+</head>
+<body>
+
+<!-- Sidebar -->
+<nav class="sidebar">
+  <div class="sidebar-logo">
+    <span class="logo-icon">📄</span>
+    <span class="logo-text">Hợp Đồng</span>
+  </div>
+
+  <div class="sidebar-section">Hợp đồng</div>
+  <a href="{{ url_for('contracts') }}"
+     class="nav-item {% if request.endpoint == 'contracts' %}active{% endif %}">
+    <span class="nav-icon">📋</span> Danh sách
+  </a>
+  <a href="{{ url_for('generate_page') }}"
+     class="nav-item {% if request.endpoint == 'generate_page' %}active{% endif %}">
+    <span class="nav-icon">➕</span> Tạo mới
+  </a>
+
+  <div class="sidebar-section" style="margin-top:16px;">Cài đặt</div>
+  <a href="{{ url_for('templates_page') }}"
+     class="nav-item {% if request.endpoint == 'templates_page' %}active{% endif %}">
+    <span class="nav-icon">📝</span> Quản lý mẫu
+  </a>
+</nav>
+
+<!-- Content -->
+<main class="content">
+  <!-- Flash messages -->
+  {% with messages = get_flashed_messages(with_categories=true) %}
+    {% if messages %}
+      <div class="toast-container" id="toasts">
+        {% for cat, msg in messages %}
+          <div class="toast toast-{{ cat }}">{{ msg }}</div>
+        {% endfor %}
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  {% block content %}{% endblock %}
+</main>
+
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+{% block scripts %}{% endblock %}
+</body>
+</html>
