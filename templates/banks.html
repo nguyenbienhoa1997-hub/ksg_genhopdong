@@ -1,0 +1,51 @@
+{% extends "layout.html" %}
+{% block title %}Danh sách ngân hàng{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Danh sách ngân hàng</h1>
+</div>
+
+<div class="toolbar">
+  <form method="GET" action="{{ url_for('banks_page') }}" style="display:flex;gap:12px;flex:1;">
+    <input type="search" name="q" value="{{ search }}"
+           placeholder="🔍  Tìm theo mã, tên ngân hàng, viết tắt..."
+           style="flex:1;" onchange="this.form.submit()">
+    {% if search %}
+    <a href="{{ url_for('banks_page') }}" class="btn btn-ghost btn-sm">✕ Xóa bộ lọc</a>
+    {% endif %}
+  </form>
+</div>
+
+<div class="table-wrap">
+  <table>
+    <thead>
+      <tr>
+        <th style="width:110px;">Mã NH</th>
+        <th style="width:90px;">Viết tắt</th>
+        <th>Tên ngân hàng</th>
+        <th>Tên hiển thị</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for b in banks %}
+      <tr>
+        <td class="text-secondary">{{ b.bank_code }}</td>
+        <td><span class="badge badge-blue">{{ b.short_name }}</span></td>
+        <td><strong>{{ b.bank_name }}</strong></td>
+        <td class="text-secondary">{{ b.medium_name }}</td>
+      </tr>
+      {% else %}
+      <tr>
+        <td colspan="4" style="text-align:center;color:var(--text-3);padding:40px;">
+          Không tìm thấy ngân hàng nào
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+<div style="font-size:12px;color:var(--text-3);margin-top:12px;">
+  {{ banks|length }} ngân hàng{% if search %} (đang lọc){% endif %}
+</div>
+{% endblock %}

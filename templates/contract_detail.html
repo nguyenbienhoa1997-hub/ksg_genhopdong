@@ -9,11 +9,6 @@
   <div style="display:flex;gap:8px;align-items:center;">
     <button id="btn-edit" class="btn btn-ghost" onclick="enterEditMode()">✏️ Sửa thông tin</button>
     <button id="btn-regen" class="btn btn-primary" onclick="doRegenerate()">🔄 Cập nhật hợp đồng</button>
-    <form method="POST"
-          action="{{ url_for('delete_contract', id=contract.id) }}" style="display:inline;">
-      <button type="submit" class="btn btn-danger"
-              onclick="return confirm('Xóa hợp đồng này? Không thể khôi phục.')">Xóa</button>
-    </form>
   </div>
 </div>
 
@@ -34,9 +29,10 @@
       </div>
       <div>
         <div class="detail-label">Mẫu sử dụng</div>
-        <div class="detail-value">
-          <span class="badge badge-blue">{{ contract.template_code }}</span>
-          {{ contract.template_name }}
+        <div class="detail-value" style="display:flex;flex-wrap:wrap;gap:6px;">
+          {% for bc in batch_contracts %}
+          <span><span class="badge badge-blue">{{ bc.template_code }}</span> {{ bc.template_name }}</span>
+          {% endfor %}
         </div>
       </div>
       <div>

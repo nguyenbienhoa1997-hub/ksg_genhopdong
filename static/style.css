@@ -129,6 +129,10 @@ thead th {
   border-bottom: 1px solid var(--border);
   white-space: nowrap;
 }
+thead tr th:first-child { border-radius: 7px 0 0 0; }
+thead tr th:last-child  { border-radius: 0 7px 0 0; }
+tbody tr:last-child td:first-child { border-radius: 0 0 0 7px; }
+tbody tr:last-child td:last-child  { border-radius: 0 0 7px 0; }
 tbody tr { border-bottom: 1px solid var(--border); transition: background .1s; }
 tbody tr:last-child { border-bottom: none; }
 tbody tr.clickable { cursor: pointer; }
@@ -242,6 +246,35 @@ input[type=text]:focus, select:focus, input[type=search]:focus {
 .action-item-danger { color: var(--danger) !important; }
 .action-item-danger:hover { background: var(--danger-lt) !important; }
 .action-divider { height: 1px; background: var(--border); margin: 4px 0; }
+
+/* ── Drawer ── */
+.drawer-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,.35); z-index: 200;
+  opacity: 0; pointer-events: none; transition: opacity .25s;
+}
+.drawer-overlay.open { opacity: 1; pointer-events: all; }
+.drawer {
+  position: fixed; top: 0; right: 0; bottom: 0; width: 420px;
+  background: #fff; z-index: 201; display: flex; flex-direction: column;
+  box-shadow: -4px 0 32px rgba(0,0,0,.15);
+  transform: translateX(100%); transition: transform .25s ease;
+}
+.drawer.open { transform: translateX(0); }
+.drawer-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 20px 24px; border-bottom: 1px solid var(--border); flex-shrink: 0;
+}
+.drawer-title { font-size: 16px; font-weight: 700; color: var(--text-1); }
+.drawer-close {
+  background: none; border: none; font-size: 22px; cursor: pointer;
+  color: var(--text-3); line-height: 1; padding: 2px 6px;
+}
+.drawer-close:hover { color: var(--text-1); }
+.drawer-body { flex: 1; overflow-y: auto; padding: 24px; display: flex; flex-direction: column; gap: 18px; }
+.drawer-footer {
+  padding: 16px 24px; border-top: 1px solid var(--border); flex-shrink: 0;
+  display: flex; justify-content: flex-end; gap: 8px;
+}
 
 /* ── Pager ── */
 .pager-btn {

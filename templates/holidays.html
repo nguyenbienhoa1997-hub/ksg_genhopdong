@@ -1,0 +1,277 @@
+{% extends "layout.html" %}
+{% block title %}Quản lý ngày nghỉ{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Quản lý ngày nghỉ</h1>
+</div>
+
+<div class="toolbar">
+  <form method="GET" action="{{ url_for('holidays_page') }}" style="display:flex;gap:12px;flex:1;">
+    <input type="search" name="q" value="{{ search }}"
+           placeholder="🔍  Tìm theo ngày hoặc loại ngày nghỉ..."
+           style="flex:1;" onchange="this.form.submit()">
+    {% if search %}
+    <a href="{{ url_for('holidays_page') }}" class="btn btn-ghost btn-sm">✕ Xóa bộ lọc</a>
+    {% endif %}
+  </form>
+  <button class="btn btn-primary" onclick="openAddDrawer()">➕ Thêm mới</button>
+</div>
+
+{% if holidays %}
+<div class="table-wrap" style="overflow:visible;">
+  <table>
+    <thead>
+      <tr>
+        <th style="width:60px;">STT</th>
+        <th style="width:160px;">Ngày</th>
+        <th>Loại ngày nghỉ</th>
+        <th style="width:140px;text-align:center;">Thao tác</th>
+      </tr>
+    </thead>
+    <tbody id="holiday-tbody">
+      {% for h in holidays %}
+      <tr id="hrow-{{ h.id }}">
+        <td class="text-secondary">{{ loop.index }}</td>
+        {% set p = h.ngay.split('-') %}<td>{{ p[2] }}/{{ p[1] }}/{{ p[0] }}</td>
+        <td>{{ h.loai }}</td>
+        <td style="text-align:center;">
+          <div class="split-btn">
+            <button class="split-btn-main" onclick="openView({{ h.id }})">Xem</button>
+            <button class="split-btn-arrow" onclick="toggleDropdown(this)">▾</button>
+            <div class="action-menu">
+              <button class="action-item" onclick="openEditDrawer({{ h.id }}, '{{ h.ngay }}', '{{ h.loai|e }}')">✏️ Sửa</button>
+              <div class="action-divider"></div>
+              <button class="action-item action-item-danger" onclick="openDeleteModal({{ h.id }}, '{{ h.ngay }}', '{{ h.loai|e }}')">🗑 Xóa</button>
+            </div>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="empty-state">
+  <div class="empty-icon">🗓</div>
+  <div class="empty-title">Chưa có ngày nghỉ nào</div>
+  <div class="empty-desc">Thêm ngày nghỉ lễ, tết để hệ thống tính toán chính xác</div>
+  <button class="btn btn-primary" style="margin-top:16px;" onclick="openAddDrawer()">➕ Thêm mới</button>
+</div>
+{% endif %}
+
+<div style="font-size:12px;color:var(--text-3);margin-top:12px;">
+  {{ holidays|length }} ngày nghỉ{% if search %} (đang lọc){% endif %}
+</div>
+
+<!-- ── Drawer Thêm / Sửa ── -->
+<div class="drawer-overlay" id="drawer-overlay" onclick="closeDrawer()"></div>
+<div class="drawer" id="drawer">
+  <div class="drawer-header">
+    <div class="drawer-title" id="drawer-title">Thêm ngày nghỉ mới</div>
+    <button class="drawer-close" onclick="closeDrawer()">×</button>
+  </div>
+  <div class="drawer-body">
+    <div>
+      <label class="form-label">Ngày <span style="color:var(--danger);">*</span></label>
+      <input type="date" id="d-ngay" style="width:100%;">
+    </div>
+    <div>
+      <label class="form-label">Loại ngày nghỉ <span style="color:var(--danger);">*</span></label>
+      <select id="d-loai" style="width:100%;">
+        <option value="">-- Chọn loại --</option>
+        <option value="Tết Dương lịch">Tết Dương lịch</option>
+        <option value="Tết Âm lịch">Tết Âm lịch</option>
+        <option value="Giỗ Tổ Hùng Vương">Giỗ Tổ Hùng Vương</option>
+        <option value="Nghi lễ 30/4">Nghi lễ 30/4</option>
+        <option value="Nghi lễ 1/5">Nghi lễ 1/5</option>
+        <option value="Quốc khánh 2/9">Quốc khánh 2/9</option>
+        <option value="Ngày nghỉ bù">Ngày nghỉ bù</option>
+        <option value="Khác">Khác</option>
+      </select>
+    </div>
+    <div id="d-loai-other-wrap" style="display:none;">
+      <label class="form-label">Tên loại ngày nghỉ khác</label>
+      <input type="text" id="d-loai-other" style="width:100%;" placeholder="Nhập tên loại ngày nghỉ">
+    </div>
+    <div id="drawer-error" style="display:none;color:var(--danger);font-size:13px;"></div>
+  </div>
+  <div class="drawer-footer">
+    <button class="btn btn-ghost" onclick="closeDrawer()">Hủy</button>
+    <button class="btn btn-primary" id="drawer-save-btn" onclick="saveHoliday()">💾 Lưu lại</button>
+  </div>
+</div>
+
+<!-- ── Modal Xem ── -->
+<div class="modal-overlay hidden" id="view-modal">
+  <div class="modal">
+    <div class="modal-title">🗓 Chi tiết ngày nghỉ</div>
+    <div style="display:grid;gap:12px;margin-bottom:20px;">
+      <div>
+        <label class="form-label">Ngày</label>
+        <input type="text" id="v-ngay" style="width:100%;" disabled>
+      </div>
+      <div>
+        <label class="form-label">Loại ngày nghỉ</label>
+        <input type="text" id="v-loai" style="width:100%;" disabled>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeViewModal()">Đóng</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modal Xóa ── -->
+<div class="modal-overlay hidden" id="delete-modal">
+  <div class="modal">
+    <div class="modal-title" style="color:var(--danger);">🗑 Xác nhận xóa</div>
+    <p style="font-size:14px;color:var(--text-2);margin-bottom:20px;">
+      Bạn có chắc muốn xóa ngày nghỉ
+      <strong id="del-info" style="color:var(--text-1);"></strong>?
+    </p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeDeleteModal()">Hủy</button>
+      <button class="btn btn-danger" id="del-confirm-btn" onclick="doDelete()">Xóa</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const holidaysData = {{ holidays | tojson }};
+let editingId = null;
+let deletingId = null;
+
+// ── Dropdown ──
+function toggleDropdown(btn) {
+  const isOpen = btn.parentElement.classList.contains('open');
+  document.querySelectorAll('.split-btn.open').forEach(el => el.classList.remove('open'));
+  if (!isOpen) btn.parentElement.classList.add('open');
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('.split-btn'))
+    document.querySelectorAll('.split-btn.open').forEach(el => el.classList.remove('open'));
+});
+
+// ── Drawer ──
+document.getElementById('d-loai').addEventListener('change', function() {
+  document.getElementById('d-loai-other-wrap').style.display =
+    this.value === 'Khác' ? 'block' : 'none';
+});
+
+function openAddDrawer() {
+  editingId = null;
+  document.getElementById('drawer-title').textContent = 'Thêm ngày nghỉ mới';
+  document.getElementById('drawer-save-btn').textContent = '💾 Lưu lại';
+  document.getElementById('d-ngay').value = '';
+  document.getElementById('d-loai').value = '';
+  document.getElementById('d-loai-other').value = '';
+  document.getElementById('d-loai-other-wrap').style.display = 'none';
+  document.getElementById('drawer-error').style.display = 'none';
+  document.getElementById('drawer-overlay').classList.add('open');
+  document.getElementById('drawer').classList.add('open');
+}
+
+function openEditDrawer(id, ngay, loai) {
+  editingId = id;
+  document.getElementById('drawer-title').textContent = 'Sửa ngày nghỉ';
+  document.getElementById('drawer-save-btn').textContent = '💾 Cập nhật';
+  document.getElementById('d-ngay').value = ngay;
+  const sel = document.getElementById('d-loai');
+  const knownOptions = Array.from(sel.options).map(o => o.value);
+  if (knownOptions.includes(loai)) {
+    sel.value = loai;
+    document.getElementById('d-loai-other-wrap').style.display = 'none';
+  } else {
+    sel.value = 'Khác';
+    document.getElementById('d-loai-other').value = loai;
+    document.getElementById('d-loai-other-wrap').style.display = 'block';
+  }
+  document.getElementById('drawer-error').style.display = 'none';
+  document.getElementById('drawer-overlay').classList.add('open');
+  document.getElementById('drawer').classList.add('open');
+}
+
+function closeDrawer() {
+  document.getElementById('drawer-overlay').classList.remove('open');
+  document.getElementById('drawer').classList.remove('open');
+}
+
+async function saveHoliday() {
+  const ngay = document.getElementById('d-ngay').value;
+  let loai = document.getElementById('d-loai').value;
+  if (loai === 'Khác') loai = document.getElementById('d-loai-other').value.trim();
+  const errEl = document.getElementById('drawer-error');
+
+  if (!ngay || !loai) {
+    errEl.textContent = 'Vui lòng điền đầy đủ thông tin';
+    errEl.style.display = 'block';
+    return;
+  }
+  errEl.style.display = 'none';
+
+  const btn = document.getElementById('drawer-save-btn');
+  btn.disabled = true; btn.textContent = '⏳ Đang lưu...';
+
+  const url = editingId ? `/settings/holidays/${editingId}/edit` : '/settings/holidays/new';
+  const r = await fetch(url, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ngay, loai})
+  });
+  const d = await r.json();
+  btn.disabled = false;
+  btn.textContent = editingId ? '💾 Cập nhật' : '💾 Lưu lại';
+
+  if (!d.success) {
+    errEl.textContent = d.error || 'Có lỗi xảy ra';
+    errEl.style.display = 'block';
+    return;
+  }
+  closeDrawer();
+  location.reload();
+}
+
+// ── Modal Xem ──
+function openView(id) {
+  const h = holidaysData.find(x => x.id === id);
+  if (!h) return;
+  const p = h.ngay.split('-');
+  document.getElementById('v-ngay').value = `${p[2]}/${p[1]}/${p[0]}`;
+  document.getElementById('v-loai').value = h.loai;
+  document.getElementById('view-modal').classList.remove('hidden');
+}
+function closeViewModal() { document.getElementById('view-modal').classList.add('hidden'); }
+document.getElementById('view-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeViewModal();
+});
+
+// ── Modal Xóa ──
+function openDeleteModal(id, ngay, loai) {
+  deletingId = id;
+  const dp = ngay.split('-');
+  const ngayFmt = dp.length === 3 ? `${dp[2]}/${dp[1]}/${dp[0]}` : ngay;
+  document.getElementById('del-info').textContent = `${ngayFmt} — ${loai}`;
+  document.getElementById('delete-modal').classList.remove('hidden');
+}
+function closeDeleteModal() { document.getElementById('delete-modal').classList.add('hidden'); }
+document.getElementById('delete-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeDeleteModal();
+});
+
+async function doDelete() {
+  const btn = document.getElementById('del-confirm-btn');
+  btn.disabled = true; btn.textContent = '⏳...';
+  const r = await fetch(`/settings/holidays/${deletingId}/delete`, {method:'POST'});
+  const d = await r.json();
+  if (d.success) {
+    closeDeleteModal();
+    location.reload();
+  } else {
+    btn.disabled = false; btn.textContent = 'Xóa';
+  }
+}
+</script>
+{% endblock %}

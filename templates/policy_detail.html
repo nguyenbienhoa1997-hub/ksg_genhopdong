@@ -1,0 +1,436 @@
+{% extends "layout.html" %}
+{% block title %}{{ policy.ten_chinh_sach }}{% endblock %}
+
+{% block content %}
+<a href="{{ url_for('settings_page') }}" class="back-link">← Danh sách chính sách</a>
+
+<div class="page-header">
+  <h1 class="page-title">{{ policy.ten_chinh_sach }}</h1>
+  <div style="display:flex;gap:8px;align-items:center;">
+    {% if policy.status == 'active' %}
+      <span class="badge badge-green">Hoạt động</span>
+    {% elif policy.status == 'closed' %}
+      <span class="badge badge-gray">Đóng</span>
+    {% else %}
+      <span class="badge" style="background:#fef3c7;color:#92400e;">Nháp</span>
+    {% endif %}
+    {% if policy.status == 'draft' %}
+    <button class="btn btn-ghost" onclick="openEditDrawer()">✏️ Sửa thông tin</button>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Tabs -->
+<div class="tabs">
+  <div class="tab active" id="tab-info"   onclick="switchTab('info')">Thông tin</div>
+  <div class="tab"        id="tab-loituc" onclick="switchTab('loituc')">
+    Lợi tức
+    <span class="badge badge-blue" style="margin-left:6px;font-size:11px;" id="tenor-count-badge">{{ tenors|length }}</span>
+  </div>
+</div>
+
+<!-- ── Tab Thông tin ── -->
+<div id="panel-info">
+  <div class="section">
+    <div class="section-title">Thông tin chính sách</div>
+    <div class="detail-grid">
+      <div>
+        <div class="detail-label">Tên chính sách</div>
+        <div class="detail-value"><strong id="info-ten">{{ policy.ten_chinh_sach }}</strong></div>
+      </div>
+      <div>
+        <div class="detail-label">% Thế chấp trái phiếu</div>
+        <div class="detail-value">
+          <span class="badge badge-blue" id="info-pct">{{ policy.pct_the_chap | round(2) }}%</span>
+        </div>
+      </div>
+      <div>
+        <div class="detail-label">Ngày tạo</div>
+        <div class="detail-value text-secondary">{{ policy.created_at[:16].replace('T',' ') }}</div>
+      </div>
+      <div>
+        <div class="detail-label">Số kỳ hạn</div>
+        <div class="detail-value" id="info-ky-han-count">{{ tenors|length }} kỳ hạn</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ── Tab Lợi tức ── -->
+<div id="panel-loituc" class="hidden">
+  <div class="section">
+    <div class="section-title" style="display:flex;align-items:center;justify-content:space-between;">
+      <span>Kỳ hạn & Lợi tức</span>
+      {% if policy.status != 'closed' %}
+      <button class="btn btn-primary btn-sm" onclick="openAddTenor()">➕ Thêm kỳ hạn</button>
+      {% endif %}
+    </div>
+
+    <div id="tenor-empty"
+         class="{% if tenors %}hidden{% endif %}"
+         style="text-align:center;padding:40px 0;color:var(--text-3);">
+      <div style="font-size:32px;margin-bottom:8px;">📊</div>
+      <div style="font-weight:600;margin-bottom:4px;">Chưa có kỳ hạn nào</div>
+      <div style="font-size:13px;">Thêm kỳ hạn để định nghĩa lợi tức</div>
+    </div>
+
+    <div class="table-wrap" style="overflow:visible;margin-top:16px;{% if not tenors %}display:none;{% endif %}"
+         id="tenor-table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Kỳ hạn (tháng)</th>
+            <th>Lợi tức (%/năm)</th>
+            <th>Ngày tạo</th>
+            <th style="width:130px;text-align:center;">Thao tác</th>
+          </tr>
+        </thead>
+        <tbody id="tenor-tbody">
+          {% for t in tenors %}
+          <tr id="tenor-row-{{ t.id }}">
+            <td><strong>{{ t.ky_han }} tháng</strong></td>
+            <td>{{ t.loi_tuc | round(2) }}%</td>
+            <td class="text-secondary">{{ t.created_at[:10] }}</td>
+            <td style="text-align:center;">
+              {% if policy.status == 'closed' %}
+              <div class="split-btn">
+                <button class="split-btn-main"
+                        onclick="openViewTenor({{ t.id }}, {{ t.ky_han }}, {{ t.loi_tuc }})">Xem</button>
+              </div>
+              {% else %}
+              <div class="split-btn">
+                <button class="split-btn-main"
+                        onclick="openViewTenor({{ t.id }}, {{ t.ky_han }}, {{ t.loi_tuc }})">Xem</button>
+                <button class="split-btn-arrow" onclick="toggleDropdown(this)">▾</button>
+                <div class="action-menu">
+                  <button class="action-item"
+                          onclick="openEditTenor({{ t.id }}, {{ t.ky_han }}, {{ t.loi_tuc }})">✏️ Sửa</button>
+                  <div class="action-divider"></div>
+                  <button class="action-item action-item-danger"
+                          onclick="openDeleteTenor({{ t.id }}, {{ t.ky_han }})">🗑 Xóa</button>
+                </div>
+              </div>
+              {% endif %}
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- ── Drawer Sửa chính sách ── -->
+<div class="drawer-overlay" id="drawer-overlay" onclick="closeDrawer()"></div>
+<div class="drawer" id="drawer">
+  <div class="drawer-header">
+    <div class="drawer-title">Sửa chính sách</div>
+    <button class="drawer-close" onclick="closeDrawer()">×</button>
+  </div>
+  <div class="drawer-body">
+    <div>
+      <label class="form-label">Tên chính sách <span style="color:var(--danger);">*</span></label>
+      <input type="text" id="d-ten" style="width:100%;" value="{{ policy.ten_chinh_sach }}">
+    </div>
+    <div>
+      <label class="form-label">% Thế chấp trái phiếu</label>
+      <div style="position:relative;">
+        <input type="number" id="d-pct" style="width:100%;padding-right:32px;"
+               value="{{ policy.pct_the_chap }}" min="0" max="100" step="0.01">
+        <span style="position:absolute;right:12px;top:50%;transform:translateY(-50%);
+                     color:var(--text-3);font-size:14px;">%</span>
+      </div>
+    </div>
+    <div id="drawer-error" style="display:none;color:var(--danger);font-size:13px;"></div>
+  </div>
+  <div class="drawer-footer">
+    <button class="btn btn-ghost" onclick="closeDrawer()">Hủy</button>
+    <button class="btn btn-primary" id="d-save-btn" onclick="saveEdit()">💾 Cập nhật</button>
+  </div>
+</div>
+
+<!-- ── Modal Thêm / Sửa kỳ hạn ── -->
+<div class="modal-overlay hidden" id="tenor-modal">
+  <div class="modal" style="max-width:400px;">
+    <div class="modal-title" id="tenor-modal-title">➕ Thêm kỳ hạn</div>
+    <div style="display:grid;gap:16px;margin-bottom:20px;">
+      <div>
+        <label class="form-label">Kỳ hạn (tháng) <span style="color:var(--danger);">*</span></label>
+        <input type="number" id="t-ky_han" style="width:100%;" placeholder="VD: 6" min="1">
+      </div>
+      <div>
+        <label class="form-label">Lợi tức (%/năm)</label>
+        <div style="position:relative;">
+          <input type="number" id="t-loi_tuc" style="width:100%;padding-right:32px;"
+                 placeholder="VD: 8.5" min="0" step="0.01">
+          <span style="position:absolute;right:12px;top:50%;transform:translateY(-50%);
+                       color:var(--text-3);font-size:14px;">%</span>
+        </div>
+      </div>
+      <div id="tenor-error" style="display:none;color:var(--danger);font-size:13px;"></div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeTenorModal()">Hủy</button>
+      <button class="btn btn-primary" id="tenor-save-btn" onclick="saveTenor()">💾 Lưu</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modal Xem kỳ hạn (disabled) ── -->
+<div class="modal-overlay hidden" id="view-tenor-modal">
+  <div class="modal" style="max-width:400px;">
+    <div class="modal-title">📊 Chi tiết kỳ hạn</div>
+    <div style="display:grid;gap:16px;margin-bottom:20px;">
+      <div>
+        <label class="form-label">Kỳ hạn (tháng)</label>
+        <input type="number" id="vt-ky_han" disabled
+               style="width:100%;background:var(--sidebar-bg);">
+      </div>
+      <div>
+        <label class="form-label">Lợi tức (%/năm)</label>
+        <div style="position:relative;">
+          <input type="number" id="vt-loi_tuc" disabled
+                 style="width:100%;background:var(--sidebar-bg);padding-right:32px;">
+          <span style="position:absolute;right:12px;top:50%;transform:translateY(-50%);
+                       color:var(--text-3);font-size:14px;">%</span>
+        </div>
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeViewTenor()">Đóng</button>
+      <button class="btn btn-primary" id="vt-edit-btn" onclick="switchViewToEdit()">✏️ Sửa</button>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modal Xóa kỳ hạn ── -->
+<div class="modal-overlay hidden" id="delete-tenor-modal">
+  <div class="modal" style="max-width:400px;">
+    <div class="modal-title" style="color:var(--danger);">🗑 Xác nhận xóa</div>
+    <p style="font-size:14px;color:var(--text-2);margin-bottom:20px;">
+      Bạn có chắc muốn xóa kỳ hạn <strong id="del-ky-han"></strong>?
+    </p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeDeleteTenor()">Hủy</button>
+      <button class="btn btn-danger" onclick="confirmDeleteTenor()">Xóa</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let tenorCount = {{ tenors|length }};
+let deletingTenorId = null;
+let viewingTenorId  = null;
+let editingTenorId  = null;
+
+// ── Tabs ──
+function switchTab(name) {
+  ['info','loituc'].forEach(t => {
+    document.getElementById('tab-' + t).classList.toggle('active', t === name);
+    document.getElementById('panel-' + t).classList.toggle('hidden', t !== name);
+  });
+}
+
+// ── Dropdown ──
+function toggleDropdown(btn) {
+  const isOpen = btn.parentElement.classList.contains('open');
+  document.querySelectorAll('.split-btn.open').forEach(el => el.classList.remove('open'));
+  if (!isOpen) btn.parentElement.classList.add('open');
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('.split-btn'))
+    document.querySelectorAll('.split-btn.open').forEach(el => el.classList.remove('open'));
+});
+
+// ── Drawer Sửa chính sách ──
+function openEditDrawer() {
+  document.getElementById('drawer-error').style.display = 'none';
+  document.getElementById('drawer-overlay').classList.add('open');
+  document.getElementById('drawer').classList.add('open');
+}
+function closeDrawer() {
+  document.getElementById('drawer-overlay').classList.remove('open');
+  document.getElementById('drawer').classList.remove('open');
+}
+async function saveEdit() {
+  const ten = document.getElementById('d-ten').value.trim();
+  const pct = document.getElementById('d-pct').value;
+  const errEl = document.getElementById('drawer-error');
+  if (!ten) { errEl.textContent = 'Vui lòng nhập tên'; errEl.style.display = 'block'; return; }
+  errEl.style.display = 'none';
+  const btn = document.getElementById('d-save-btn');
+  btn.disabled = true; btn.textContent = '⏳ Đang lưu...';
+  const r = await fetch('/settings/policies/{{ policy.id }}/edit', {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ten_chinh_sach: ten, pct_the_chap: parseFloat(pct) || 0})
+  });
+  const d = await r.json();
+  btn.disabled = false; btn.textContent = '💾 Cập nhật';
+  if (d.success) {
+    document.getElementById('info-ten').textContent = ten;
+    document.getElementById('info-pct').textContent = (parseFloat(pct)||0).toFixed(2) + '%';
+    document.querySelector('.page-title').textContent = ten;
+    closeDrawer();
+  } else {
+    errEl.textContent = d.error || 'Lỗi'; errEl.style.display = 'block';
+  }
+}
+
+// ── Modal Thêm / Sửa kỳ hạn ──
+function openAddTenor() {
+  editingTenorId = null;
+  document.getElementById('tenor-modal-title').textContent = '➕ Thêm kỳ hạn';
+  document.getElementById('tenor-save-btn').textContent = '💾 Lưu';
+  document.getElementById('t-ky_han').value  = '';
+  document.getElementById('t-loi_tuc').value = '';
+  document.getElementById('tenor-error').style.display = 'none';
+  document.getElementById('t-ky_han').disabled  = false;
+  document.getElementById('t-loi_tuc').disabled = false;
+  document.getElementById('tenor-modal').classList.remove('hidden');
+  setTimeout(() => document.getElementById('t-ky_han').focus(), 100);
+}
+function openEditTenor(id, ky_han, loi_tuc) {
+  editingTenorId = id;
+  document.getElementById('tenor-modal-title').textContent = '✏️ Sửa kỳ hạn';
+  document.getElementById('tenor-save-btn').textContent = '💾 Cập nhật';
+  document.getElementById('t-ky_han').value  = ky_han;
+  document.getElementById('t-loi_tuc').value = loi_tuc;
+  document.getElementById('tenor-error').style.display = 'none';
+  document.getElementById('t-ky_han').disabled  = false;
+  document.getElementById('t-loi_tuc').disabled = false;
+  document.getElementById('tenor-modal').classList.remove('hidden');
+}
+function closeTenorModal() { document.getElementById('tenor-modal').classList.add('hidden'); }
+
+async function saveTenor() {
+  const ky_han  = document.getElementById('t-ky_han').value;
+  const loi_tuc = document.getElementById('t-loi_tuc').value;
+  const errEl   = document.getElementById('tenor-error');
+  if (!ky_han || parseInt(ky_han) <= 0) {
+    errEl.textContent = 'Vui lòng nhập kỳ hạn hợp lệ';
+    errEl.style.display = 'block'; return;
+  }
+  errEl.style.display = 'none';
+  const btn = document.getElementById('tenor-save-btn');
+  btn.disabled = true; btn.textContent = '⏳...';
+
+  let url, body;
+  if (editingTenorId) {
+    url  = `/settings/policies/{{ policy.id }}/tenors/${editingTenorId}/edit`;
+    body = {ky_han: parseInt(ky_han), loi_tuc: parseFloat(loi_tuc) || 0};
+  } else {
+    url  = '/settings/policies/{{ policy.id }}/tenors';
+    body = {ky_han: parseInt(ky_han), loi_tuc: parseFloat(loi_tuc) || 0};
+  }
+
+  const r = await fetch(url, {
+    method: 'POST', headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify(body)
+  });
+  const d = await r.json();
+  btn.disabled = false;
+  btn.textContent = editingTenorId ? '💾 Cập nhật' : '💾 Lưu';
+
+  if (!d.success) { errEl.textContent = d.error || 'Lỗi'; errEl.style.display = 'block'; return; }
+
+  closeTenorModal();
+
+  if (editingTenorId) {
+    // Cập nhật dòng hiện có
+    const row = document.getElementById('tenor-row-' + editingTenorId);
+    if (row) {
+      row.cells[0].innerHTML = `<strong>${parseInt(ky_han)} tháng</strong>`;
+      row.cells[1].textContent = (parseFloat(loi_tuc)||0).toFixed(2) + '%';
+      // Cập nhật onclick của các nút
+      row.querySelector('.split-btn-main').setAttribute('onclick',
+        `openViewTenor(${editingTenorId}, ${parseInt(ky_han)}, ${parseFloat(loi_tuc)||0})`);
+      row.querySelector('.action-menu button:first-child').setAttribute('onclick',
+        `openEditTenor(${editingTenorId}, ${parseInt(ky_han)}, ${parseFloat(loi_tuc)||0})`);
+    }
+  } else {
+    // Thêm dòng mới
+    const t = d.tenor;
+    document.getElementById('tenor-empty').classList.add('hidden');
+    document.getElementById('tenor-table-wrap').style.display = '';
+    const created = (t.created_at || '').slice(0,10) || new Date().toISOString().slice(0,10);
+    document.getElementById('tenor-tbody').insertAdjacentHTML('beforeend', `
+      <tr id="tenor-row-${t.id}">
+        <td><strong>${t.ky_han} tháng</strong></td>
+        <td>${parseFloat(t.loi_tuc).toFixed(2)}%</td>
+        <td class="text-secondary">${created}</td>
+        <td style="text-align:center;">
+          <div class="split-btn">
+            <button class="split-btn-main"
+                    onclick="openViewTenor(${t.id}, ${t.ky_han}, ${t.loi_tuc})">Xem</button>
+            <button class="split-btn-arrow" onclick="toggleDropdown(this)">▾</button>
+            <div class="action-menu">
+              <button class="action-item"
+                      onclick="openEditTenor(${t.id}, ${t.ky_han}, ${t.loi_tuc})">✏️ Sửa</button>
+              <div class="action-divider"></div>
+              <button class="action-item action-item-danger"
+                      onclick="openDeleteTenor(${t.id}, ${t.ky_han})">🗑 Xóa</button>
+            </div>
+          </div>
+        </td>
+      </tr>`);
+    tenorCount++;
+    updateTenorCount();
+  }
+  // Luôn ở lại tab Lợi tức
+  switchTab('loituc');
+}
+
+// ── Modal Xem kỳ hạn ──
+function openViewTenor(id, ky_han, loi_tuc) {
+  viewingTenorId = id;
+  document.getElementById('vt-ky_han').value  = ky_han;
+  document.getElementById('vt-loi_tuc').value = loi_tuc;
+  document.getElementById('view-tenor-modal').classList.remove('hidden');
+}
+function closeViewTenor() { document.getElementById('view-tenor-modal').classList.add('hidden'); }
+function switchViewToEdit() {
+  closeViewTenor();
+  const row = document.getElementById('tenor-row-' + viewingTenorId);
+  const ky  = document.getElementById('vt-ky_han').value;
+  const lt  = document.getElementById('vt-loi_tuc').value;
+  openEditTenor(viewingTenorId, ky, lt);
+}
+
+// ── Modal Xóa kỳ hạn ──
+function openDeleteTenor(id, ky_han) {
+  deletingTenorId = id;
+  document.getElementById('del-ky-han').textContent = ky_han + ' tháng';
+  document.getElementById('delete-tenor-modal').classList.remove('hidden');
+}
+function closeDeleteTenor() { document.getElementById('delete-tenor-modal').classList.add('hidden'); }
+async function confirmDeleteTenor() {
+  if (!deletingTenorId) return;
+  const r = await fetch(`/settings/policies/{{ policy.id }}/tenors/${deletingTenorId}/delete`, {method:'POST'});
+  const d = await r.json();
+  if (d.success) {
+    document.getElementById('tenor-row-' + deletingTenorId)?.remove();
+    tenorCount = Math.max(0, tenorCount - 1);
+    updateTenorCount();
+    if (tenorCount === 0) {
+      document.getElementById('tenor-table-wrap').style.display = 'none';
+      document.getElementById('tenor-empty').classList.remove('hidden');
+    }
+    closeDeleteTenor();
+  }
+}
+
+function updateTenorCount() {
+  document.getElementById('tenor-count-badge').textContent = tenorCount;
+  document.getElementById('info-ky-han-count').textContent = tenorCount + ' kỳ hạn';
+}
+
+// Close modals on backdrop click
+['view-tenor-modal','delete-tenor-modal','tenor-modal'].forEach(id => {
+  document.getElementById(id).addEventListener('click', function(e) {
+    if (e.target === this) this.classList.add('hidden');
+  });
+});
+</script>
+{% endblock %}

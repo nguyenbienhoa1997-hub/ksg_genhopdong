@@ -62,14 +62,29 @@
 
   <!-- Preview table -->
   <div class="section-title">Xem trước dữ liệu Excel</div>
-  <div class="table-wrap" style="margin-bottom:8px;">
-    <table id="preview-tbl"></table>
+  <div class="table-wrap" style="margin-bottom:8px;overflow-x:auto;">
+    <table id="preview-tbl" style="min-width:max-content;"></table>
   </div>
   <div class="text-tertiary" id="preview-meta" style="font-size:12px;margin-bottom:24px;"></div>
 
+  <!-- Chọn mẫu -->
+  <div class="section-title" style="margin-bottom:10px;">Chọn mẫu hợp đồng cần tạo</div>
+  <div id="tpl-list" style="display:flex;flex-wrap:wrap;gap:10px;margin-bottom:24px;">
+    {% for t in templates %}
+    <label style="display:flex;align-items:center;gap:8px;padding:8px 14px;border:1px solid var(--border);
+                  border-radius:8px;cursor:pointer;font-size:13px;user-select:none;"
+           id="tpl-label-{{ t.id }}">
+      <input type="checkbox" name="tpl" value="{{ t.id }}" checked
+             onchange="onTplToggle(this, {{ t.id }})">
+      <span class="badge badge-blue">{{ t.code }}</span>
+      {{ t.name }}
+    </label>
+    {% endfor %}
+  </div>
+
   <div style="display:flex;justify-content:space-between;align-items:center;">
     <button class="btn btn-ghost" onclick="goStep(1)">← Chọn file khác</button>
-    <button class="btn btn-primary" onclick="doGenerate()">Tạo hợp đồng →</button>
+    <button class="btn btn-primary" id="btn-gen" onclick="doGenerate()">Tạo hợp đồng →</button>
   </div>
 </div>
 
@@ -156,18 +171,22 @@ async function doUpload() {
     tempPath = d.temp_path;
     headers  = d.headers;
 
+    // Lọc bỏ cột tự sinh tên (Col32, Col33...)
+    const colPattern = /^Col\d+$/;
+    const visibleIdx = headers.map((h, i) => i).filter(i => !colPattern.test(headers[i]));
+    const visibleHeaders = visibleIdx.map(i => headers[i]);
+
     // var tags
     document.getElementById('var-tags').innerHTML =
-      headers.map(h => '<span style="background:#fff;border:1px solid #bfdbfe;border-radius:4px;' +
+      visibleHeaders.map(h => '<span style="background:#fff;border:1px solid #bfdbfe;border-radius:4px;' +
         'padding:2px 8px;font-size:12px;font-family:monospace;">{{ ' + d.var_names[h] + ' }}</span>').join('');
-
 
     // preview table
     const tbl = document.getElementById('preview-tbl');
     tbl.innerHTML =
-      `<thead><tr>${headers.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead>` +
+      `<thead><tr>${visibleHeaders.map(h => `<th>${esc(h)}</th>`).join('')}</tr></thead>` +
       `<tbody>${d.preview.map(row =>
-        `<tr>${row.map(v => `<td>${esc(v)}</td>`).join('')}</tr>`
+        `<tr>${visibleIdx.map(i => `<td>${esc(row[i] ?? '')}</td>`).join('')}</tr>`
       ).join('')}</tbody>`;
     document.getElementById('preview-meta').textContent =
       `Hiển thị ${d.preview.length} dòng đầu / tổng ${d.total_rows} dòng dữ liệu`;
@@ -180,7 +199,23 @@ async function doUpload() {
 }
 
 // ── Step 2 → Generate ──
+function onTplToggle(cb, id) {
+  const label = document.getElementById('tpl-label-' + id);
+  label.style.borderColor = cb.checked ? 'var(--accent)' : 'var(--border)';
+  label.style.background  = cb.checked ? 'var(--accent-lt)' : '';
+  const anyChecked = [...document.querySelectorAll('input[name=tpl]')].some(c => c.checked);
+  document.getElementById('btn-gen').disabled = !anyChecked;
+}
+
+// Highlight all checked on load
+document.addEventListener('DOMContentLoaded', () => {
+  document.querySelectorAll('input[name=tpl]').forEach(cb => onTplToggle(cb, cb.value));
+});
+
 async function doGenerate() {
+  const selectedTpls = [...document.querySelectorAll('input[name=tpl]:checked')].map(c => c.value);
+  if (!selectedTpls.length) { alert('Vui lòng chọn ít nhất 1 mẫu'); return; }
+
   goStep(3);
   show('gen-loading'); hide('gen-result');
 
@@ -189,7 +224,8 @@ async function doGenerate() {
       method:  'POST',
       headers: { 'Content-Type': 'application/json' },
       body:    JSON.stringify({
-        temp_path: tempPath,
+        temp_path:    tempPath,
+        template_ids: selectedTpls,
       })
     });
     const d = await r.json();

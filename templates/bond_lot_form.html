@@ -1,0 +1,75 @@
+{% extends "layout.html" %}
+{% block title %}{{ 'Sửa lô TP' if lot else 'Thêm lô TP mới' }}{% endblock %}
+
+{% block content %}
+<a href="{{ url_for('bond_lots_page') }}" class="back-link">← Danh sách lô TP</a>
+
+<div class="page-header">
+  <h1 class="page-title">{{ 'Sửa lô trái phiếu' if lot else 'Thêm lô trái phiếu mới' }}</h1>
+  <div style="display:flex;gap:8px;">
+    <a href="{{ url_for('bond_lots_page') }}" class="btn btn-ghost">Hủy</a>
+    <button form="lot-form" type="submit" class="btn btn-primary">💾 Lưu lại</button>
+  </div>
+</div>
+
+<form id="lot-form" method="POST"
+      action="{{ url_for('bond_lot_edit', id=lot.id) if lot else url_for('bond_lot_new') }}">
+  <div class="section">
+    <div class="section-title">Thông tin lô trái phiếu</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
+
+      <div>
+        <label class="form-label">Mã TP theo Văn kiện <span style="color:var(--danger);">*</span></label>
+        <input type="text" name="ma_vk" required
+               value="{{ lot.ma_vk if lot else '' }}"
+               placeholder="VD: PDEHB2226001"
+               style="width:100%;">
+      </div>
+
+      <div>
+        <label class="form-label">Mã TP do VSDC cấp</label>
+        <input type="text" name="ma_vsdc"
+               value="{{ lot.ma_vsdc if lot else '' }}"
+               placeholder="VD: PDEHB2226001"
+               style="width:100%;">
+      </div>
+
+      <div style="grid-column:1/-1;">
+        <label class="form-label">Tổ chức phát hành</label>
+        <input type="text" name="to_chuc_ph"
+               value="{{ lot.to_chuc_ph if lot else '' }}"
+               placeholder="VD: CÔNG TY CỔ PHẦN ĐẦU TƯ..."
+               style="width:100%;">
+      </div>
+
+      <div>
+        <label class="form-label">Ngày phát hành</label>
+        <input type="text" name="ngay_ph"
+               value="{{ lot.ngay_ph if lot else '' }}"
+               placeholder="dd/mm/yyyy"
+               style="width:100%;">
+      </div>
+
+      <div>
+        <label class="form-label">Ngày đáo hạn</label>
+        <input type="text" name="ngay_dh"
+               value="{{ lot.ngay_dh if lot else '' }}"
+               placeholder="dd/mm/yyyy"
+               style="width:100%;">
+      </div>
+
+      <div>
+        <label class="form-label">Đơn giá (đồng/trái phiếu)</label>
+        <input type="number" name="don_gia" min="0" step="1"
+               value="{{ lot.don_gia | int if lot and lot.don_gia else '' }}"
+               placeholder="VD: 100000"
+               style="width:100%;">
+        <div style="font-size:12px;color:var(--text-3);margin-top:4px;">
+          Mệnh giá / đơn giá giao dịch của lô này
+        </div>
+      </div>
+
+    </div>
+  </div>
+</form>
+{% endblock %}

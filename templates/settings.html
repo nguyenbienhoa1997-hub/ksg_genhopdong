@@ -1,0 +1,250 @@
+{% extends "layout.html" %}
+{% block title %}Cài đặt{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Cài đặt</h1>
+</div>
+
+<!-- Tabs -->
+<div class="tabs" style="margin-bottom:24px;">
+  <div class="tab active">Chính sách sản phẩm</div>
+</div>
+
+<div id="panel-policies">
+
+<!-- Toolbar -->
+<div class="toolbar">
+  <div style="flex:1;"></div>
+  <button class="btn btn-primary" onclick="openDrawer()">➕ Thêm mới</button>
+</div>
+
+<!-- Danh sách chính sách -->
+{% if policies %}
+<div class="table-wrap" style="overflow:visible;">
+  <table>
+    <thead>
+      <tr>
+        <th>Tên chính sách</th>
+        <th style="width:180px;">% Thế chấp trái phiếu</th>
+        <th style="width:120px;">Trạng thái</th>
+        <th>Ngày tạo</th>
+        <th style="width:140px;text-align:center;">Thao tác</th>
+      </tr>
+    </thead>
+    <tbody id="policy-tbody">
+      {% for p in policies %}
+      <tr id="row-{{ p.id }}">
+        <td><strong>{{ p.ten_chinh_sach }}</strong></td>
+        <td>{{ p.pct_the_chap | round(2) }}%</td>
+        <td>
+          {% if p.status == 'active' %}
+            <span class="badge badge-green">Hoạt động</span>
+          {% elif p.status == 'closed' %}
+            <span class="badge badge-gray">Đóng</span>
+          {% else %}
+            <span class="badge" style="background:#fef3c7;color:#92400e;">Nháp</span>
+          {% endif %}
+        </td>
+        <td class="text-secondary">{{ p.created_at[:10] }}</td>
+        <td style="text-align:center;">
+          {% if p.status == 'draft' %}
+          <div class="split-btn">
+            <button class="split-btn-main"
+                    onclick="location.href='/settings/policies/{{ p.id }}'">Xem</button>
+            <button class="split-btn-arrow" onclick="toggleDropdown(this)">▾</button>
+            <div class="action-menu">
+              <button class="action-item"
+                      onclick="activatePolicy({{ p.id }})">✅ Bật hoạt động</button>
+              <div class="action-divider"></div>
+              <button class="action-item"
+                      onclick="openEditDrawer({{ p.id }}, '{{ p.ten_chinh_sach|e }}', {{ p.pct_the_chap }})">✏️ Sửa</button>
+              <div class="action-divider"></div>
+              <button class="action-item action-item-danger"
+                      onclick="openDeleteModal({{ p.id }}, '{{ p.ten_chinh_sach|e }}')">🗑 Xóa</button>
+            </div>
+          </div>
+          {% elif p.status == 'active' %}
+          <div class="split-btn">
+            <button class="split-btn-main"
+                    onclick="location.href='/settings/policies/{{ p.id }}'">Xem</button>
+            <button class="split-btn-arrow" onclick="toggleDropdown(this)">▾</button>
+            <div class="action-menu">
+              <button class="action-item action-item-danger"
+                      onclick="closePolicy({{ p.id }})">🔒 Đóng</button>
+            </div>
+          </div>
+          {% else %}
+          <div class="split-btn">
+            <button class="split-btn-main"
+                    onclick="location.href='/settings/policies/{{ p.id }}'">Xem</button>
+          </div>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="empty-state" id="empty-state">
+  <div class="empty-icon">📋</div>
+  <div class="empty-title">Chưa có chính sách nào</div>
+  <div class="empty-desc">Thêm chính sách sản phẩm để bắt đầu</div>
+  <button class="btn btn-primary" style="margin-top:16px;" onclick="openDrawer()">➕ Thêm mới</button>
+</div>
+{% endif %}
+
+</div><!-- /panel-policies -->
+
+<!-- ── Drawer Thêm / Sửa ── -->
+<div class="drawer-overlay" id="drawer-overlay" onclick="closeDrawer()"></div>
+<div class="drawer" id="drawer">
+  <div class="drawer-header">
+    <div class="drawer-title" id="drawer-title">Thêm chính sách mới</div>
+    <button class="drawer-close" onclick="closeDrawer()">×</button>
+  </div>
+  <div class="drawer-body">
+    <div>
+      <label class="form-label">Tên chính sách <span style="color:var(--danger);">*</span></label>
+      <input type="text" id="d-ten" style="width:100%;" placeholder="VD: Chính sách A">
+    </div>
+    <div>
+      <label class="form-label">% Thế chấp trái phiếu</label>
+      <div style="position:relative;">
+        <input type="number" id="d-pct" style="width:100%;padding-right:32px;"
+               placeholder="VD: 80" min="0" max="100" step="0.01">
+        <span style="position:absolute;right:12px;top:50%;transform:translateY(-50%);
+                     color:var(--text-3);font-size:14px;">%</span>
+      </div>
+    </div>
+    <div id="drawer-error" style="display:none;color:var(--danger);font-size:13px;"></div>
+  </div>
+  <div class="drawer-footer">
+    <button class="btn btn-ghost" onclick="closeDrawer()">Hủy</button>
+    <button class="btn btn-primary" id="drawer-save-btn" onclick="savePolicy()">💾 Lưu lại</button>
+  </div>
+</div>
+
+<!-- ── Modal Xóa ── -->
+<div class="modal-overlay hidden" id="delete-modal">
+  <div class="modal">
+    <div class="modal-title" style="color:var(--danger);">🗑 Xác nhận xóa</div>
+    <p style="font-size:14px;color:var(--text-2);margin-bottom:20px;">
+      Bạn có chắc muốn xóa chính sách
+      <strong id="del-name" style="color:var(--text-1);"></strong>?<br>
+      Tất cả kỳ hạn trong chính sách này cũng sẽ bị xóa.
+    </p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeDeleteModal()">Hủy</button>
+      <form id="delete-form" method="POST" style="display:inline;">
+        <button type="submit" class="btn btn-danger">Xóa</button>
+      </form>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let editingId = null;
+
+// ── Dropdown ──
+function toggleDropdown(btn) {
+  const isOpen = btn.parentElement.classList.contains('open');
+  document.querySelectorAll('.split-btn.open').forEach(el => el.classList.remove('open'));
+  if (!isOpen) btn.parentElement.classList.add('open');
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('.split-btn'))
+    document.querySelectorAll('.split-btn.open').forEach(el => el.classList.remove('open'));
+});
+
+// ── Drawer ──
+function openDrawer() {
+  editingId = null;
+  document.getElementById('drawer-title').textContent = 'Thêm chính sách mới';
+  document.getElementById('drawer-save-btn').textContent = '💾 Lưu lại';
+  document.getElementById('d-ten').value = '';
+  document.getElementById('d-pct').value = '';
+  document.getElementById('drawer-error').style.display = 'none';
+  document.getElementById('drawer-overlay').classList.add('open');
+  document.getElementById('drawer').classList.add('open');
+  setTimeout(() => document.getElementById('d-ten').focus(), 300);
+}
+
+function openEditDrawer(id, ten, pct) {
+  editingId = id;
+  document.getElementById('drawer-title').textContent = 'Sửa chính sách';
+  document.getElementById('drawer-save-btn').textContent = '💾 Cập nhật';
+  document.getElementById('d-ten').value = ten;
+  document.getElementById('d-pct').value = pct;
+  document.getElementById('drawer-error').style.display = 'none';
+  document.getElementById('drawer-overlay').classList.add('open');
+  document.getElementById('drawer').classList.add('open');
+  setTimeout(() => document.getElementById('d-ten').focus(), 300);
+}
+
+function closeDrawer() {
+  document.getElementById('drawer-overlay').classList.remove('open');
+  document.getElementById('drawer').classList.remove('open');
+}
+
+async function savePolicy() {
+  const ten = document.getElementById('d-ten').value.trim();
+  const pct = document.getElementById('d-pct').value;
+  const errEl = document.getElementById('drawer-error');
+  if (!ten) {
+    errEl.textContent = 'Vui lòng nhập tên chính sách';
+    errEl.style.display = 'block';
+    return;
+  }
+  errEl.style.display = 'none';
+
+  const btn = document.getElementById('drawer-save-btn');
+  btn.disabled = true; btn.textContent = '⏳ Đang lưu...';
+
+  const url  = editingId ? `/settings/policies/${editingId}/edit` : '/settings/policies';
+  const r    = await fetch(url, {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ten_chinh_sach: ten, pct_the_chap: pct || 0})
+  });
+  const d = await r.json();
+  btn.disabled = false;
+  btn.textContent = editingId ? '💾 Cập nhật' : '💾 Lưu lại';
+
+  if (!d.success) {
+    errEl.textContent = d.error || 'Có lỗi xảy ra';
+    errEl.style.display = 'block';
+    return;
+  }
+
+  closeDrawer();
+  location.reload();
+}
+
+// ── Đổi trạng thái ──
+async function activatePolicy(id) {
+  const r = await fetch(`/settings/policies/${id}/activate`, {method:'POST'});
+  const d = await r.json();
+  if (d.success) location.reload();
+}
+async function closePolicy(id) {
+  const r = await fetch(`/settings/policies/${id}/close`, {method:'POST'});
+  const d = await r.json();
+  if (d.success) location.reload();
+}
+
+// ── Modal Xóa ──
+function openDeleteModal(id, name) {
+  document.getElementById('del-name').textContent = name;
+  document.getElementById('delete-form').action = `/settings/policies/${id}/delete`;
+  document.getElementById('delete-modal').classList.remove('hidden');
+}
+function closeDeleteModal() { document.getElementById('delete-modal').classList.add('hidden'); }
+document.getElementById('delete-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeDeleteModal();
+});
+</script>
+{% endblock %}

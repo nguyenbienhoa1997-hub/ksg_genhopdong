@@ -4,7 +4,11 @@
 {% block content %}
 <div class="page-header">
   <h1 class="page-title">Danh sách hợp đồng</h1>
-  <a href="{{ url_for('generate_page') }}" class="btn btn-primary">➕ Tạo mới</a>
+  <div style="display:flex;gap:8px;align-items:center;">
+    <button id="btn-bulk-delete" class="btn btn-danger" style="display:none;"
+            onclick="bulkDelete()">🗑 Xóa (<span id="sel-count">0</span>)</button>
+    <a href="{{ url_for('generate_page') }}" class="btn btn-primary">➕ Tạo mới</a>
+  </div>
 </div>
 
 <!-- Toolbar: search + filter -->
@@ -14,7 +18,7 @@
            placeholder="🔍  Tìm theo tên KH, số HĐ, CCCD..."
            style="flex:1;" onchange="this.form.submit()">
 
-    <select name="template" style="width:200px;" onchange="this.form.submit()">
+    <select name="template" style="width:180px;" onchange="this.form.submit()">
       <option value="">Tất cả mẫu</option>
       {% for t in templates %}
       <option value="{{ t.code }}" {% if selected_template == t.code %}selected{% endif %}>
@@ -23,24 +27,32 @@
       {% endfor %}
     </select>
 
-    {% if search or selected_template %}
+    <input type="date" name="date_from" value="{{ date_from }}"
+           style="width:150px;" onchange="this.form.submit()" title="Từ ngày GD">
+    <input type="date" name="date_to" value="{{ date_to }}"
+           style="width:150px;" onchange="this.form.submit()" title="Đến ngày GD">
+
+    {% if search or selected_template or date_from or date_to %}
     <a href="{{ url_for('contracts') }}" class="btn btn-ghost btn-sm">✕ Xóa bộ lọc</a>
     {% endif %}
   </form>
 </div>
 
 {% if contracts %}
-<div class="table-wrap">
+<div class="table-wrap" style="overflow:visible;">
   <table style="min-width:1100px;">
     <thead>
       <tr>
+        <th style="width:40px;text-align:center;">
+          <input type="checkbox" id="chk-all" onclick="toggleAll(this)">
+        </th>
         <th style="min-width:160px;">Tên khách hàng</th>
         <th style="min-width:200px;">Số HĐ vay vốn</th>
         <th style="min-width:200px;">Số HĐ Thế chấp</th>
         <th style="min-width:130px;">CCCD/CMND</th>
         <th style="min-width:70px;">Lãi suất</th>
         <th style="min-width:70px;">Kỳ hạn</th>
-        <th style="min-width:90px;">Mẫu</th>
+        <th style="min-width:110px;">Ngày GD</th>
         <th style="min-width:110px;">Ngày tạo</th>
         <th style="min-width:100px;">Thao tác</th>
       </tr>
@@ -48,13 +60,16 @@
     <tbody>
       {% for c in contracts %}
       <tr class="clickable" onclick="location.href='{{ url_for('contract_detail', id=c.id) }}'">
+        <td onclick="event.stopPropagation()" style="text-align:center;">
+          <input type="checkbox" class="row-chk" value="{{ c.id }}" onclick="onRowCheck()">
+        </td>
         <td><strong>{{ c.ten_kh or c.name }}</strong></td>
         <td class="text-secondary" style="font-size:12px;font-family:monospace;">{{ c.so_hd or '—' }}</td>
         <td class="text-secondary" style="font-size:12px;font-family:monospace;">{{ c.so_hdtc or '—' }}</td>
         <td class="text-secondary" style="font-size:12px;">{{ c.cccd or '—' }}</td>
         <td class="text-secondary">{{ c.lai_suat or '—' }}</td>
         <td class="text-secondary" style="text-align:center;">{{ c.ky_han or '—' }}</td>
-        <td><span class="badge badge-blue">{{ c.template_code }}</span></td>
+        <td class="text-secondary" style="font-size:12px;">{{ c.ngay_gd or '—' }}</td>
         <td class="text-secondary" style="font-size:12px;">{{ c.created_at[:16].replace('T',' ') }}</td>
         <td onclick="event.stopPropagation()" style="text-align:right;">
           <div class="split-btn">
@@ -81,7 +96,7 @@
     <select onchange="location.href=this.value"
             style="padding:3px 6px;font-size:13px;border:1px solid var(--border);border-radius:4px;cursor:pointer;">
       {% for n in [15, 30, 50, 100] %}
-      <option value="{{ url_for('contracts', q=search, template=selected_template, per_page=n, page=1) }}"
+      <option value="{{ url_for('contracts', q=search, template=selected_template, date_from=date_from, date_to=date_to, per_page=n, page=1) }}"
               {% if per_page == n %}selected{% endif %}>{{ n }}</option>
       {% endfor %}
     </select>
@@ -94,10 +109,10 @@
 
   <!-- Nav buttons -->
   <div style="display:flex;align-items:center;gap:2px;">
-    {% set _first = url_for('contracts', q=search, template=selected_template, per_page=per_page, page=1) %}
-    {% set _prev  = url_for('contracts', q=search, template=selected_template, per_page=per_page, page=page-1) %}
-    {% set _next  = url_for('contracts', q=search, template=selected_template, per_page=per_page, page=page+1) %}
-    {% set _last  = url_for('contracts', q=search, template=selected_template, per_page=per_page, page=total_pages) %}
+    {% set _first = url_for('contracts', q=search, template=selected_template, date_from=date_from, date_to=date_to, per_page=per_page, page=1) %}
+    {% set _prev  = url_for('contracts', q=search, template=selected_template, date_from=date_from, date_to=date_to, per_page=per_page, page=page-1) %}
+    {% set _next  = url_for('contracts', q=search, template=selected_template, date_from=date_from, date_to=date_to, per_page=per_page, page=page+1) %}
+    {% set _last  = url_for('contracts', q=search, template=selected_template, date_from=date_from, date_to=date_to, per_page=per_page, page=total_pages) %}
 
     <a href="{{ _first }}" class="pager-btn {% if page == 1 %}disabled{% endif %}" title="Trang đầu">|&lt;</a>
     <a href="{{ _prev }}"  class="pager-btn {% if page == 1 %}disabled{% endif %}" title="Trang trước">&lt;</a>
@@ -124,4 +139,36 @@
   {% endif %}
 </div>
 {% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleAll(master) {
+  document.querySelectorAll('.row-chk').forEach(c => c.checked = master.checked);
+  onRowCheck();
+}
+function onRowCheck() {
+  const all     = document.querySelectorAll('.row-chk');
+  const checked = [...all].filter(c => c.checked);
+  const master  = document.getElementById('chk-all');
+  if (master) {
+    master.indeterminate = checked.length > 0 && checked.length < all.length;
+    master.checked = all.length > 0 && checked.length === all.length;
+  }
+  document.getElementById('sel-count').textContent = checked.length;
+  document.getElementById('btn-bulk-delete').style.display = checked.length ? '' : 'none';
+}
+async function bulkDelete() {
+  const ids = [...document.querySelectorAll('.row-chk:checked')].map(c => c.value);
+  if (!ids.length) return;
+  if (!confirm('Xóa ' + ids.length + ' hợp đồng đã chọn? Không thể khôi phục.')) return;
+  const r = await fetch('{{ url_for("bulk_delete_contracts") }}', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ids})
+  });
+  if (r.ok) location.reload();
+  else alert('Có lỗi xảy ra');
+}
+</script>
 {% endblock %}

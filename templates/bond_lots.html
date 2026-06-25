@@ -1,0 +1,208 @@
+{% extends "layout.html" %}
+{% block title %}Lô Trái Phiếu{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Lô Trái Phiếu</h1>
+  <a href="{{ url_for('bond_lot_new') }}" class="btn btn-primary">➕ Thêm lô mới</a>
+</div>
+
+<div class="toolbar">
+  <form method="GET" action="{{ url_for('bond_lots_page') }}" style="display:flex;gap:12px;flex:1;">
+    <input type="search" name="q" value="{{ search }}"
+           placeholder="🔍  Tìm theo mã TP, tổ chức phát hành..."
+           style="flex:1;" onchange="this.form.submit()">
+    {% if search %}
+    <a href="{{ url_for('bond_lots_page') }}" class="btn btn-ghost btn-sm">✕ Xóa bộ lọc</a>
+    {% endif %}
+  </form>
+</div>
+
+{% if lots %}
+<div class="table-wrap" style="overflow:visible;">
+  <table>
+    <thead>
+      <tr>
+        <th>Mã TP (Văn kiện)</th>
+        <th>Mã TP (VSDC)</th>
+        <th>Tổ chức phát hành</th>
+        <th>Ngày phát hành</th>
+        <th>Ngày đáo hạn</th>
+        <th style="text-align:right;">Đơn giá</th>
+        <th>Ngày tạo</th>
+        <th style="width:130px;text-align:center;">Thao tác</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for lot in lots %}
+      <tr>
+        <td><strong>{{ lot.ma_vk }}</strong></td>
+        <td class="text-secondary">{{ lot.ma_vsdc or '—' }}</td>
+        <td>{{ lot.to_chuc_ph or '—' }}</td>
+        <td class="text-secondary">{{ lot.ngay_ph or '—' }}</td>
+        <td class="text-secondary">{{ lot.ngay_dh or '—' }}</td>
+        <td style="text-align:right;font-variant-numeric:tabular-nums;">
+          {% if lot.don_gia %}{{ "{:,.0f}".format(lot.don_gia) }}{% else %}—{% endif %}
+        </td>
+        <td class="text-secondary" style="font-size:12px;">{{ lot.created_at[:10] }}</td>
+        <td style="text-align:center;">
+          <div class="split-btn">
+            <button class="split-btn-main" onclick="openView({{ lot.id }})">Xem</button>
+            <button class="split-btn-arrow" onclick="toggleDropdown(this)">▾</button>
+            <div class="action-menu">
+              <button class="action-item"
+                      onclick="location.href='/bond-lots/{{ lot.id }}/edit'">✏️ Sửa</button>
+              <div class="action-divider"></div>
+              <button class="action-item action-item-danger"
+                      onclick="openDelete({{ lot.id }}, '{{ lot.ma_vk|e }}')">🗑 Xóa</button>
+            </div>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<!-- Pagination -->
+{% if total_pages > 1 %}
+<div class="pagination">
+  <span class="page-info">{{ from_row }}–{{ to_row }} / {{ total }}</span>
+  {% if page > 1 %}
+  <a href="{{ url_for('bond_lots_page', q=search, page=page-1) }}" class="btn btn-ghost btn-sm">‹ Trước</a>
+  {% endif %}
+  {% for p in range(1, total_pages+1) %}
+    {% if p == page %}
+    <span class="btn btn-primary btn-sm">{{ p }}</span>
+    {% elif p == 1 or p == total_pages or (p >= page-2 and p <= page+2) %}
+    <a href="{{ url_for('bond_lots_page', q=search, page=p) }}" class="btn btn-ghost btn-sm">{{ p }}</a>
+    {% elif p == page-3 or p == page+3 %}
+    <span style="padding:0 4px;color:var(--text-3);">…</span>
+    {% endif %}
+  {% endfor %}
+  {% if page < total_pages %}
+  <a href="{{ url_for('bond_lots_page', q=search, page=page+1) }}" class="btn btn-ghost btn-sm">Sau ›</a>
+  {% endif %}
+</div>
+{% endif %}
+
+{% else %}
+<div class="empty-state">
+  <div class="empty-icon">💎</div>
+  <div class="empty-title">Chưa có lô trái phiếu nào</div>
+  <div class="empty-desc">Thêm lô trái phiếu để dùng khi tạo lệnh</div>
+  <a href="{{ url_for('bond_lot_new') }}" class="btn btn-primary" style="margin-top:16px;">➕ Thêm lô mới</a>
+</div>
+{% endif %}
+
+<!-- ── Modal Xem ── -->
+<div class="modal-overlay hidden" id="view-modal">
+  <div class="modal">
+    <div class="modal-title">💎 Chi tiết lô trái phiếu</div>
+    <div style="display:grid;gap:14px;margin-bottom:20px;">
+      <div>
+        <label class="form-label">Mã TP theo Văn kiện</label>
+        <input type="text" id="v-ma_vk" disabled style="width:100%;background:var(--sidebar-bg);">
+      </div>
+      <div>
+        <label class="form-label">Mã TP do VSDC cấp</label>
+        <input type="text" id="v-ma_vsdc" disabled style="width:100%;background:var(--sidebar-bg);">
+      </div>
+      <div>
+        <label class="form-label">Tổ chức phát hành</label>
+        <input type="text" id="v-to_chuc_ph" disabled style="width:100%;background:var(--sidebar-bg);">
+      </div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;">
+        <div>
+          <label class="form-label">Ngày phát hành</label>
+          <input type="text" id="v-ngay_ph" disabled style="width:100%;background:var(--sidebar-bg);">
+        </div>
+        <div>
+          <label class="form-label">Ngày đáo hạn</label>
+          <input type="text" id="v-ngay_dh" disabled style="width:100%;background:var(--sidebar-bg);">
+        </div>
+      </div>
+      <div>
+        <label class="form-label">Đơn giá (đồng/trái phiếu)</label>
+        <input type="text" id="v-don_gia" disabled style="width:100%;background:var(--sidebar-bg);">
+      </div>
+    </div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeView()">Đóng</button>
+      <a id="v-edit-link" href="#" class="btn btn-primary">✏️ Sửa</a>
+    </div>
+  </div>
+</div>
+
+<!-- ── Modal Xóa ── -->
+<div class="modal-overlay hidden" id="delete-modal">
+  <div class="modal">
+    <div class="modal-title" style="color:var(--danger);">🗑 Xác nhận xóa</div>
+    <p style="font-size:14px;color:var(--text-2);margin-bottom:20px;">
+      Bạn có chắc muốn xóa lô trái phiếu
+      <strong id="del-name" style="color:var(--text-1);"></strong>?<br>
+      Hành động này không thể hoàn tác.
+    </p>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeDelete()">Hủy</button>
+      <form id="delete-form" method="POST" style="display:inline;">
+        <button type="submit" class="btn btn-danger">Xóa</button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<!-- Data cho JS -->
+<script id="lots-data" type="application/json">
+{{ lots | tojson }}
+</script>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const lotsData = JSON.parse(document.getElementById('lots-data').textContent);
+
+// ── Dropdown ──
+function toggleDropdown(btn) {
+  const menu = btn.nextElementSibling;
+  const isOpen = btn.parentElement.classList.contains('open');
+  document.querySelectorAll('.split-btn.open').forEach(el => el.classList.remove('open'));
+  if (!isOpen) btn.parentElement.classList.add('open');
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('.split-btn'))
+    document.querySelectorAll('.split-btn.open').forEach(el => el.classList.remove('open'));
+});
+
+// ── Modal Xem ──
+function openView(id) {
+  const lot = lotsData.find(l => l.id === id);
+  if (!lot) return;
+  document.getElementById('v-ma_vk').value      = lot.ma_vk      || '';
+  document.getElementById('v-ma_vsdc').value    = lot.ma_vsdc    || '';
+  document.getElementById('v-to_chuc_ph').value = lot.to_chuc_ph || '';
+  document.getElementById('v-ngay_ph').value    = lot.ngay_ph    || '';
+  document.getElementById('v-ngay_dh').value    = lot.ngay_dh    || '';
+  document.getElementById('v-don_gia').value    = lot.don_gia
+    ? lot.don_gia.toLocaleString('vi-VN') + ' đ' : '—';
+  document.getElementById('v-edit-link').href   = '/bond-lots/' + id + '/edit';
+  document.getElementById('view-modal').classList.remove('hidden');
+}
+function closeView() { document.getElementById('view-modal').classList.add('hidden'); }
+
+// ── Modal Xóa ──
+function openDelete(id, name) {
+  document.getElementById('del-name').textContent = name;
+  document.getElementById('delete-form').action = '/bond-lots/' + id + '/delete';
+  document.getElementById('delete-modal').classList.remove('hidden');
+}
+function closeDelete() { document.getElementById('delete-modal').classList.add('hidden'); }
+
+// Click ngoài modal → đóng
+['view-modal','delete-modal'].forEach(id => {
+  document.getElementById(id).addEventListener('click', function(e) {
+    if (e.target === this) this.classList.add('hidden');
+  });
+});
+</script>
+{% endblock %}

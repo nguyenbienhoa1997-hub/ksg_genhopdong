@@ -1,0 +1,184 @@
+{% extends "layout.html" %}
+{% block title %}Chi tiết lệnh #{{ order.id }}{% endblock %}
+
+{% block content %}
+<a href="{{ url_for('orders_page') }}" class="back-link">← Danh sách lệnh</a>
+
+<div class="page-header">
+  <h1 class="page-title">{{ data.get('Số Hợp đồng vay vốn') or 'Lệnh #' ~ order.id }}</h1>
+  <div style="display:flex;gap:8px;align-items:center;">
+    <a href="{{ url_for('order_edit', id=order.id) }}" class="btn btn-ghost">✏️ Sửa thông tin</a>
+    <button class="btn btn-primary" onclick="openGenModal()">🚀 Tạo hợp đồng</button>
+  </div>
+</div>
+
+<!-- Tabs -->
+<div class="tabs">
+  <div class="tab active" id="tab-info"      onclick="switchTab('info')">Thông tin</div>
+  <div class="tab"        id="tab-contracts" onclick="switchTab('contracts')">
+    Hợp đồng{% if contracts %} <span class="badge badge-blue" style="margin-left:4px;">{{ contracts|length }}</span>{% endif %}
+  </div>
+</div>
+
+<div id="panel-contracts" class="hidden">
+  {% if contracts %}
+  <div class="section">
+    <div class="section-title">Các loại hợp đồng</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Loại hợp đồng</th>
+            <th>Mã mẫu</th>
+            <th>Ngày tạo</th>
+            <th>Tải về</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for c in contracts %}
+          <tr>
+            <td><span style="margin-right:8px;">📄</span><strong>{{ c.template_name }}</strong></td>
+            <td><span class="badge badge-blue">{{ c.template_code }}</span></td>
+            <td class="text-secondary" style="font-size:12px;">{{ c.created_at[:16].replace('T',' ') }}</td>
+            <td>
+              <a href="{{ url_for('download_contract', id=c.id) }}" class="btn btn-primary" style="font-size:12px;padding:4px 12px;">
+                ↓ Tải PDF
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+  {% else %}
+  <div style="text-align:center;padding:60px 0;color:var(--text-3);font-size:14px;">
+    Chưa có hợp đồng nào. Nhấn <strong>Tạo hợp đồng</strong> để tạo.
+  </div>
+  {% endif %}
+</div>
+
+<div id="panel-info">
+  <div class="section">
+    <div class="section-title">Thông tin chung</div>
+    <div class="detail-grid">
+      <div>
+        <div class="detail-label">Trạng thái</div>
+        <div class="detail-value">
+          {% if order.status == 'generated' %}
+            <span class="badge badge-green">Đã gen hợp đồng</span>
+          {% else %}
+            <span class="badge badge-gray">Nháp</span>
+          {% endif %}
+        </div>
+      </div>
+      <div>
+        <div class="detail-label">Ngày tạo</div>
+        <div class="detail-value">{{ order.created_at[:16].replace('T',' ') }}</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="divider"></div>
+
+  <div class="section">
+    <div class="section-title">Dữ liệu lệnh</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr><th style="width:40%;">Trường</th><th>Giá trị</th></tr>
+        </thead>
+        <tbody>
+          {% for key, val in data.items() %}
+          {% if val and val.strip() %}
+          <tr>
+            <td class="text-secondary">{{ key.strip() }}</td>
+            <td>{{ val }}</td>
+          </tr>
+          {% endif %}
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </div>
+</div>
+
+<!-- Modal chọn mẫu để gen -->
+<div class="modal-overlay hidden" id="gen-modal">
+  <div class="modal">
+    <div class="modal-title">🚀 Tạo hợp đồng từ lệnh này</div>
+    <div style="margin-bottom:16px;font-size:13px;color:var(--text-2);">Chọn mẫu cần tạo:</div>
+    <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:20px;">
+      {% for t in templates %}
+      <label style="display:flex;align-items:center;gap:10px;padding:10px 14px;
+                    border:1px solid var(--border);border-radius:8px;cursor:pointer;
+                    font-size:13px;" id="glabel-{{ t.id }}">
+        <input type="checkbox" class="gen-tpl-chk" value="{{ t.id }}" checked
+               onchange="onGenTplToggle(this, {{ t.id }})">
+        <span class="badge badge-blue">{{ t.code }}</span>
+        {{ t.name }}
+      </label>
+      {% endfor %}
+    </div>
+    <div id="gen-modal-result" class="hidden"
+         style="padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:16px;"></div>
+    <div class="modal-actions">
+      <button class="btn btn-ghost" onclick="closeGenModal()">Hủy</button>
+      <button class="btn btn-primary" id="btn-do-gen" onclick="doGenerate()">Tạo hợp đồng</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function switchTab(name) {
+  ['info', 'contracts'].forEach(t => {
+    document.getElementById('tab-' + t).classList.toggle('active', t === name);
+    document.getElementById('panel-' + t).classList.toggle('hidden', t !== name);
+  });
+}
+function openGenModal()  {
+  document.getElementById('gen-modal-result').classList.add('hidden');
+  document.getElementById('gen-modal').classList.remove('hidden');
+  document.querySelectorAll('.gen-tpl-chk').forEach(c => { c.checked = true; onGenTplToggle(c, c.value); });
+}
+function closeGenModal() { document.getElementById('gen-modal').classList.add('hidden'); }
+
+function onGenTplToggle(cb, id) {
+  const lbl = document.getElementById('glabel-' + id);
+  lbl.style.borderColor = cb.checked ? 'var(--accent)' : 'var(--border)';
+  lbl.style.background  = cb.checked ? 'var(--accent-lt)' : '';
+}
+
+async function doGenerate() {
+  const ids = [...document.querySelectorAll('.gen-tpl-chk:checked')].map(c => c.value);
+  if (!ids.length) { alert('Vui lòng chọn ít nhất 1 mẫu'); return; }
+
+  const btn = document.getElementById('btn-do-gen');
+  btn.disabled = true; btn.textContent = '⏳ Đang tạo...';
+
+  const r = await fetch('{{ url_for("order_generate", id=order.id) }}', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({template_ids: ids})
+  });
+  const d = await r.json();
+
+  const res = document.getElementById('gen-modal-result');
+  res.classList.remove('hidden');
+  if (d.success) {
+    closeGenModal();
+    location.reload();
+  } else {
+    res.style.cssText = 'background:var(--danger-lt);border:1px solid #fecaca;color:var(--danger);padding:10px 14px;border-radius:8px;font-size:13px;margin-bottom:16px;';
+    res.textContent = '❌ ' + (d.error || 'Có lỗi xảy ra');
+  }
+  btn.disabled = false; btn.textContent = 'Tạo hợp đồng';
+}
+
+document.getElementById('gen-modal').addEventListener('click', function(e) {
+  if (e.target === this) closeGenModal();
+});
+</script>
+{% endblock %}

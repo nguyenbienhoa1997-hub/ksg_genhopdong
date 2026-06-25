@@ -1,0 +1,172 @@
+<div class="section">
+  <div class="section-title">Thông tin khách hàng</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
+    <div style="grid-column:1/-1;">
+      <label class="form-label">Tên khách hàng</label>
+      <input type="text" name="Tên khách hàng" value="{{ data.get('Tên khách hàng','') }}" style="width:100%;">
+    </div>
+    <div>
+      <label class="form-label">Thông tin CMND/CCCD của KH</label>
+      <input type="text" name="Thông tin CMND/CCCD của KH" value="{{ data.get('Thông tin CMND/CCCD của KH','') }}" style="width:100%;">
+    </div>
+    <div>
+      <label class="form-label">Ngày tháng năm Sinh</label>
+      <input type="text" name="Ngày tháng năm Sinh" value="{{ data.get('Ngày tháng năm Sinh','') }}" style="width:100%;">
+    </div>
+    <div>
+      <label class="form-label">Ngày cấp</label>
+      <input type="text" name="Ngày cấp" value="{{ data.get('Ngày cấp','') }}" style="width:100%;">
+    </div>
+    <div>
+      <label class="form-label">Nơi cấp</label>
+      <input type="text" name="Nơi cấp" value="{{ data.get('Nơi cấp','') }}" style="width:100%;">
+    </div>
+    <div style="grid-column:1/-1;">
+      <label class="form-label">Địa chỉ liên lạc</label>
+      <input type="text" name="Địa chỉ liên lạc" value="{{ data.get('Địa chỉ liên lạc','') }}" style="width:100%;">
+    </div>
+    <div>
+      <label class="form-label">Số điện thoại</label>
+      <input type="text" name="Số điện thoại" value="{{ data.get('Số điện thoại','') }}" style="width:100%;">
+    </div>
+    <div>
+      <label class="form-label">Địa chỉ email</label>
+      <input type="text" name="ĐỊA CHỈ EMAIL " value="{{ data.get('ĐỊA CHỈ EMAIL ','') }}" style="width:100%;">
+    </div>
+    <div style="grid-column:1/-1;">
+      <label class="form-label">
+        Tài khoản nhận tiền
+        <span style="color:var(--danger);">*</span>
+      </label>
+      <select id="bank-account-select" style="width:100%;" onchange="onBankSelect(this)" required>
+        {% if data.get('Tài khoản KH ') %}
+          <option value="__manual__" selected>
+            {{ data.get('Tài khoản KH ','') }} — {{ data.get('Ngân hàng - chi nhánh','') }}
+          </option>
+        {% else %}
+          <option value="">-- Chọn tài khoản ngân hàng --</option>
+        {% endif %}
+      </select>
+      <div style="font-size:12px;color:var(--text-3);margin-top:4px;">
+        Chọn tài khoản để tự động điền thông tin bên dưới
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<div class="section">
+  <div class="section-title">Thông tin hợp đồng</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
+
+    <!-- Lô TP -->
+    <div style="grid-column:1/-1;">
+      <label class="form-label">Lô Trái Phiếu <span style="color:var(--danger);">*</span></label>
+      <select id="lot-select" style="width:100%;" onchange="onLotSelect(this.value)">
+        <option value="">-- Chọn lô trái phiếu --</option>
+      </select>
+      <div id="lot-sub" style="display:none;font-size:12px;color:var(--text-2);margin-top:4px;
+                                background:var(--sidebar-bg);padding:6px 10px;border-radius:6px;"></div>
+    </div>
+
+    <!-- Chính sách -->
+    <div style="grid-column:1/-1;">
+      <label class="form-label">Chính sách <span style="color:var(--danger);">*</span></label>
+      <select id="cs-sel" style="width:100%;" onchange="onPolicyChange(this.value)">
+        <option value="">-- Chọn chính sách --</option>
+      </select>
+    </div>
+
+    <!-- Kỳ hạn | Lãi suất -->
+    <div>
+      <label class="form-label">Kỳ hạn <span style="color:var(--danger);">*</span></label>
+      <select id="kh-sel" style="width:100%;" onchange="onTenorChange(this)" disabled>
+        <option value="">-- Chọn sau khi chọn chính sách --</option>
+      </select>
+    </div>
+    <div>
+      <label class="form-label">Lãi suất (%/năm)</label>
+      <div style="position:relative;">
+        <input type="text" name="Lãi suất" id="ls-field"
+               value="{{ data.get('Lãi suất','') }}"
+               style="width:100%;background:var(--accent-lt);padding-right:52px;" readonly
+               placeholder="Tự động điền">
+        <span style="position:absolute;right:12px;top:50%;transform:translateY(-50%);
+                     color:var(--text-3);font-size:12px;">%/năm</span>
+      </div>
+    </div>
+
+    <!-- Số tiền đầu tư | Ngày đầu tư -->
+    <div>
+      <label class="form-label">Số tiền đầu tư <span style="color:var(--danger);">*</span></label>
+      <input type="text" name="Giá trị hợp đồng trái phiếu" id="st-field"
+             value="{{ data.get('Giá trị hợp đồng trái phiếu','') }}"
+             style="width:100%;" placeholder="VD: 500.000.000"
+             oninput="fmtMoneyInput(this); recalcAll()">
+    </div>
+    <div>
+      <label class="form-label">Ngày đầu tư <span style="color:var(--danger);">*</span></label>
+      <input type="text" id="ndt-field" style="width:100%;"
+             placeholder="dd/mm/yyyy" readonly>
+    </div>
+
+    <!-- Hidden: các trường cần cho mẫu HĐ, tự động tính -->
+    <input type="hidden" name="Ngày giao dịch"      id="h-ngd"    value="{{ data.get('Ngày giao dịch','') }}">
+    <input type="hidden" name="Ngày bằng chữ"        id="h-nbc"    value="{{ data.get('Ngày bằng chữ','') }}">
+    <input type="hidden" name="Kỳ hạn theo tháng"   id="h-kyhan"  value="{{ data.get('Kỳ hạn theo tháng','') }}">
+    <input type="hidden" name="Ngày đáo hạn HĐ"     id="h-ndh"    value="{{ data.get('Ngày đáo hạn HĐ','') }}">
+    <input type="hidden" name="Số ngày cho vay"      id="h-songay" value="{{ data.get('Số ngày cho vay','') }}">
+    <input type="hidden" name="Số tiền bằng chữ"    id="h-stbc"   value="{{ data.get('Số tiền bằng chữ','') }}">
+    <input type="hidden" name="Số tiền thực nhận"   id="h-tien-tn" value="{{ data.get('Số tiền thực nhận','') }}">
+    <input type="hidden" name="Số Hợp đồng vay vốn"               value="{{ data.get('Số Hợp đồng vay vốn','') }}">
+    <input type="hidden" name="Số HĐ Thế chấp"                    value="{{ data.get('Số HĐ Thế chấp','') }}">
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<div class="section">
+  <div class="section-title">Thông tin lô TP</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
+    <div>
+      <label class="form-label">Mã trái phiếu (Văn kiện)</label>
+      <input type="text" name="Mã trái phiếu (theo Văn kiện trái phiếu)"
+             value="{{ data.get('Mã trái phiếu (theo Văn kiện trái phiếu)','') }}"
+             style="width:100%;background:var(--sidebar-bg);color:var(--text-2);" readonly>
+    </div>
+    <div>
+      <label class="form-label">Mã trái phiếu (VSDC)</label>
+      <input type="text" name="Mã trái phiếu (do VSDC cấp)"
+             value="{{ data.get('Mã trái phiếu (do VSDC cấp)','') }}"
+             style="width:100%;background:var(--sidebar-bg);color:var(--text-2);" readonly>
+    </div>
+    <div style="grid-column:1/-1;">
+      <label class="form-label">Tổ chức phát hành</label>
+      <input type="text" name="TỔ CHỨC PH"
+             value="{{ data.get('TỔ CHỨC PH','') }}"
+             style="width:100%;background:var(--sidebar-bg);color:var(--text-2);" readonly>
+    </div>
+    <div>
+      <label class="form-label">Ngày phát hành</label>
+      <input type="text" name="NGÀY PHÁT HÀNH "
+             value="{{ data.get('NGÀY PHÁT HÀNH ','') }}"
+             style="width:100%;background:var(--sidebar-bg);color:var(--text-2);" readonly>
+    </div>
+    <div>
+      <label class="form-label">Ngày đáo hạn (TP)</label>
+      <input type="text" name="NGÀY ĐÁO HẠN "
+             value="{{ data.get('NGÀY ĐÁO HẠN ','') }}"
+             style="width:100%;background:var(--sidebar-bg);color:var(--text-2);" readonly>
+    </div>
+
+    <!-- Hidden: được fill tự động từ KH lookup và bank select -->
+    <input type="hidden" name="Tài khoản KH "                value="{{ data.get('Tài khoản KH ','') }}">
+    <input type="hidden" name="Tên tài khoản KH"             value="{{ data.get('Tên tài khoản KH','') }}">
+    <input type="hidden" name="Ngân hàng - chi nhánh"        value="{{ data.get('Ngân hàng - chi nhánh','') }}">
+    <input type="hidden" name="SỐ TKCK"                      value="{{ data.get('SỐ TKCK','') }}">
+    <input type="hidden" name="NƠI MỞ TKCK"                  value="{{ data.get('NƠI MỞ TKCK','') }}">
+    <input type="hidden" name="Số lượng trái phiếu thế chấp" id="h-sl-tp" value="{{ data.get('Số lượng trái phiếu thế chấp','') }}">
+    <input type="hidden" name="Phí phong tỏa"                value="{{ data.get('Phí phong tỏa','') }}">
+  </div>
+</div>

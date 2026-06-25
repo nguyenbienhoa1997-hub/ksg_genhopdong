@@ -2,6 +2,11 @@ import os
 import re
 from docxtpl import DocxTemplate
 from docx2pdf import convert as _docx_to_pdf
+try:
+    import pythoncom
+    _HAS_PYTHONCOM = True
+except ImportError:
+    _HAS_PYTHONCOM = False
 
 
 def to_var_name(s: str) -> str:
@@ -29,7 +34,13 @@ def generate_pdf(template_path: str, row_data: dict, output_pdf_path: str) -> st
         doc = DocxTemplate(template_path)
         doc.render(ctx)
         doc.save(docx_path)
-        _docx_to_pdf(docx_path, output_pdf_path)
+        if _HAS_PYTHONCOM:
+            pythoncom.CoInitialize()
+        try:
+            _docx_to_pdf(docx_path, output_pdf_path)
+        finally:
+            if _HAS_PYTHONCOM:
+                pythoncom.CoUninitialize()
     finally:
         if os.path.exists(docx_path):
             os.remove(docx_path)

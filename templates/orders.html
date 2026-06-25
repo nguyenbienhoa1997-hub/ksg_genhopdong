@@ -1,0 +1,151 @@
+{% extends "layout.html" %}
+{% block title %}Danh sách lệnh{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Danh sách lệnh</h1>
+  <div style="display:flex;gap:8px;align-items:center;">
+    <button id="btn-bulk-delete" class="btn btn-danger" style="display:none;"
+            onclick="bulkDelete()">🗑 Xóa (<span id="sel-count">0</span>)</button>
+    <a href="{{ url_for('order_new') }}" class="btn btn-primary">➕ Thêm mới</a>
+  </div>
+</div>
+
+<div class="toolbar">
+  <form method="GET" action="{{ url_for('orders_page') }}" style="display:flex;gap:12px;flex:1;">
+    <input type="search" name="q" value="{{ search }}"
+           placeholder="🔍  Tìm theo tên KH, số HĐ, CCCD..."
+           style="flex:1;" onchange="this.form.submit()">
+    {% if search %}
+    <a href="{{ url_for('orders_page') }}" class="btn btn-ghost btn-sm">✕ Xóa bộ lọc</a>
+    {% endif %}
+  </form>
+</div>
+
+{% if orders %}
+<div class="table-wrap" style="overflow:visible;">
+  <table style="min-width:900px;">
+    <thead>
+      <tr>
+        <th style="width:40px;text-align:center;">
+          <input type="checkbox" id="chk-all" onclick="toggleAll(this)">
+        </th>
+        <th style="min-width:180px;">Tên khách hàng</th>
+        <th style="min-width:190px;">Số HĐ vay vốn</th>
+        <th style="min-width:130px;">CCCD/CMND</th>
+        <th style="min-width:110px;">Ngày GD</th>
+        <th style="min-width:70px;">Kỳ hạn</th>
+        <th style="min-width:90px;">Trạng thái</th>
+        <th style="min-width:110px;">Ngày tạo</th>
+        <th style="min-width:100px;">Thao tác</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for o in orders %}
+      <tr class="clickable" onclick="location.href='{{ url_for('order_detail', id=o.id) }}'">
+        <td onclick="event.stopPropagation()" style="text-align:center;">
+          <input type="checkbox" class="row-chk" value="{{ o.id }}" onclick="onRowCheck()">
+        </td>
+        <td><strong>{{ o.ten_kh or '—' }}</strong></td>
+        <td class="text-secondary" style="font-size:12px;font-family:monospace;">{{ o.so_hd or '—' }}</td>
+        <td class="text-secondary" style="font-size:12px;">{{ o.cccd or '—' }}</td>
+        <td class="text-secondary" style="font-size:12px;">{{ o.ngay_gd or '—' }}</td>
+        <td class="text-secondary" style="text-align:center;">{{ o.ky_han or '—' }}</td>
+        <td>
+          {% if o.status == 'generated' %}
+            <span class="badge badge-green">Đã gen HĐ</span>
+          {% else %}
+            <span class="badge badge-gray">Nháp</span>
+          {% endif %}
+        </td>
+        <td class="text-secondary" style="font-size:12px;">{{ o.created_at[:16].replace('T',' ') }}</td>
+        <td onclick="event.stopPropagation()" style="text-align:right;">
+          <div class="split-btn">
+            <a href="{{ url_for('order_detail', id=o.id) }}" class="split-btn-main">Xem</a>
+            <button class="split-btn-arrow" onclick="toggleDropdown(this)">▾</button>
+            <div class="action-menu">
+              <a href="{{ url_for('order_edit', id=o.id) }}" class="action-item">✏️ Sửa</a>
+              <div class="action-divider"></div>
+              <form method="POST" action="{{ url_for('order_delete', id=o.id) }}">
+                <button type="submit" class="action-item action-item-danger"
+                        onclick="return confirm('Xóa lệnh này?')">🗑 Xóa</button>
+              </form>
+            </div>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+
+<div style="display:flex;align-items:center;justify-content:flex-end;gap:20px;margin-top:12px;padding:8px 4px;border-top:1px solid var(--border);">
+  <div style="display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-2);">
+    <span>Số dòng/trang:</span>
+    <select onchange="location.href=this.value"
+            style="padding:3px 6px;font-size:13px;border:1px solid var(--border);border-radius:4px;cursor:pointer;">
+      {% for n in [15, 30, 50, 100] %}
+      <option value="{{ url_for('orders_page', q=search, per_page=n, page=1) }}"
+              {% if per_page == n %}selected{% endif %}>{{ n }}</option>
+      {% endfor %}
+    </select>
+  </div>
+  <div style="font-size:13px;color:var(--text-2);">{{ from_row }} - {{ to_row }} / {{ total }}</div>
+  <div style="display:flex;align-items:center;gap:2px;">
+    {% set _first = url_for('orders_page', q=search, per_page=per_page, page=1) %}
+    {% set _prev  = url_for('orders_page', q=search, per_page=per_page, page=page-1) %}
+    {% set _next  = url_for('orders_page', q=search, per_page=per_page, page=page+1) %}
+    {% set _last  = url_for('orders_page', q=search, per_page=per_page, page=total_pages) %}
+    <a href="{{ _first }}" class="pager-btn {% if page==1 %}disabled{% endif %}">|&lt;</a>
+    <a href="{{ _prev }}"  class="pager-btn {% if page==1 %}disabled{% endif %}">&lt;</a>
+    <span style="font-size:13px;color:var(--text-2);padding:0 10px;white-space:nowrap;">Trang {{ page }} / {{ total_pages }}</span>
+    <a href="{{ _next }}"  class="pager-btn {% if page==total_pages %}disabled{% endif %}">&gt;</a>
+    <a href="{{ _last }}"  class="pager-btn {% if page==total_pages %}disabled{% endif %}">&gt;|</a>
+  </div>
+</div>
+
+{% else %}
+<div class="empty-state">
+  <div class="empty-icon">📑</div>
+  {% if search %}
+    <div class="empty-title">Không tìm thấy kết quả</div>
+    <a href="{{ url_for('orders_page') }}" class="btn btn-ghost">Xóa bộ lọc</a>
+  {% else %}
+    <div class="empty-title">Chưa có lệnh nào</div>
+    <div class="empty-desc">Bấm "Thêm mới" để tạo lệnh đầu tiên</div>
+    <a href="{{ url_for('order_new') }}" class="btn btn-primary">➕ Thêm lệnh mới</a>
+  {% endif %}
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function toggleAll(master) {
+  document.querySelectorAll('.row-chk').forEach(c => c.checked = master.checked);
+  onRowCheck();
+}
+function onRowCheck() {
+  const all     = document.querySelectorAll('.row-chk');
+  const checked = [...all].filter(c => c.checked);
+  const master  = document.getElementById('chk-all');
+  if (master) {
+    master.indeterminate = checked.length > 0 && checked.length < all.length;
+    master.checked = all.length > 0 && checked.length === all.length;
+  }
+  document.getElementById('sel-count').textContent = checked.length;
+  document.getElementById('btn-bulk-delete').style.display = checked.length ? '' : 'none';
+}
+async function bulkDelete() {
+  const ids = [...document.querySelectorAll('.row-chk:checked')].map(c => c.value);
+  if (!ids.length) return;
+  if (!confirm('Xóa ' + ids.length + ' lệnh đã chọn?')) return;
+  const r = await fetch('{{ url_for("bulk_delete_orders") }}', {
+    method: 'POST',
+    headers: {'Content-Type': 'application/json'},
+    body: JSON.stringify({ids})
+  });
+  if (r.ok) location.reload();
+}
+</script>
+{% endblock %}

@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>{% block title %}Hợp Đồng{% endblock %}</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+  {% block head_extra %}{% endblock %}
 </head>
 <body>
 
@@ -25,10 +26,36 @@
     <span class="nav-icon">➕</span> Tạo mới
   </a>
 
+  <div class="sidebar-section" style="margin-top:16px;">Đặt lệnh</div>
+  <a href="{{ url_for('orders_page') }}"
+     class="nav-item {% if request.endpoint in ('orders_page','order_detail','order_new') %}active{% endif %}">
+    <span class="nav-icon">📑</span> Danh sách lệnh
+  </a>
+  <a href="{{ url_for('order_new') }}"
+     class="nav-item {% if request.endpoint == 'order_new' %}active{% endif %}">
+    <span class="nav-icon">➕</span> Thêm lệnh mới
+  </a>
+
   <div class="sidebar-section" style="margin-top:16px;">Cài đặt</div>
   <a href="{{ url_for('templates_page') }}"
      class="nav-item {% if request.endpoint == 'templates_page' %}active{% endif %}">
     <span class="nav-icon">📝</span> Quản lý mẫu
+  </a>
+  <a href="{{ url_for('bond_lots_page') }}"
+     class="nav-item {% if request.endpoint in ('bond_lots_page','bond_lot_new','bond_lot_edit') %}active{% endif %}">
+    <span class="nav-icon">💎</span> Lô Trái Phiếu
+  </a>
+  <a href="{{ url_for('settings_page') }}"
+     class="nav-item {% if request.endpoint in ('settings_page','policy_detail') %}active{% endif %}">
+    <span class="nav-icon">📐</span> Chính sách SP
+  </a>
+  <a href="{{ url_for('banks_page') }}"
+     class="nav-item {% if request.endpoint == 'banks_page' %}active{% endif %}">
+    <span class="nav-icon">🏦</span> Danh sách NH
+  </a>
+  <a href="{{ url_for('holidays_page') }}"
+     class="nav-item {% if request.endpoint == 'holidays_page' %}active{% endif %}">
+    <span class="nav-icon">🗓</span> Ngày nghỉ
   </a>
 </nav>
 

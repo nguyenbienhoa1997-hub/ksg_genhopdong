@@ -16,7 +16,7 @@
 </div>
 
 {% if templates %}
-<div class="table-wrap">
+<div class="table-wrap" style="overflow:visible;">
   <table>
     <thead>
       <tr>
@@ -35,13 +35,16 @@
         <td class="text-secondary">{{ t.filename }}</td>
         <td class="text-secondary">{{ t.created_at[:10] }}</td>
         <td style="text-align:right;">
-          <form method="POST"
-                action="{{ url_for('delete_template', id=t.id) }}" style="display:inline;">
-            <button type="submit" class="btn btn-danger btn-sm"
-                    onclick="return confirm('Xóa mẫu này?')">
-              Xóa
-            </button>
-          </form>
+          <div class="split-btn">
+            <a href="{{ url_for('download_template', id=t.id) }}" class="split-btn-main">Xem</a>
+            <button class="split-btn-arrow" onclick="toggleDropdown(this)">▾</button>
+            <div class="action-menu">
+              <form method="POST" action="{{ url_for('delete_template', id=t.id) }}">
+                <button type="submit" class="action-item action-item-danger"
+                        onclick="return confirm('Xóa mẫu này?')">🗑 Xóa</button>
+              </form>
+            </div>
+          </div>
         </td>
       </tr>
       {% endfor %}

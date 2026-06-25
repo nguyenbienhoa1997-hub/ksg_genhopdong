@@ -1,0 +1,715 @@
+{% extends "layout.html" %}
+{% block title %}{{ 'Sửa lệnh' if order else 'Thêm lệnh mới' }}{% endblock %}
+
+{% block content %}
+<a href="{{ url_for('orders_page') }}" class="back-link">← Danh sách lệnh</a>
+
+{% if order %}
+<!-- ── CHẾ ĐỘ SỬA: chỉ hiện form ── -->
+<div class="page-header">
+  <h1 class="page-title">Sửa lệnh</h1>
+  <div style="display:flex;gap:8px;">
+    <a href="{{ url_for('order_detail', id=order.id) }}" class="btn btn-ghost">Hủy</a>
+    <button form="order-form" type="submit" class="btn btn-primary">💾 Lưu lại</button>
+  </div>
+</div>
+<form id="order-form" method="POST" action="{{ url_for('order_edit', id=order.id) }}">
+  {% include '_order_fields.html' %}
+</form>
+
+{% else %}
+<!-- ── THÊM MỚI: 2 bước ── -->
+
+<!-- BƯỚC 1: Tìm kiếm KH -->
+<div id="step1" style="display:flex;flex-direction:column;min-height:calc(100vh - 140px);">
+
+  <!-- Header -->
+  <div style="display:flex;align-items:center;justify-content:space-between;
+              border-bottom:1px solid var(--border);padding-bottom:16px;margin-bottom:24px;">
+    <div style="display:flex;align-items:center;gap:10px;">
+      <span style="font-size:18px;color:var(--accent);font-weight:700;">»</span>
+      <h2 style="font-size:20px;font-weight:700;">Tìm kiếm khách hàng</h2>
+    </div>
+    <a href="{{ url_for('orders_page') }}"
+       style="font-size:22px;color:var(--text-3);text-decoration:none;line-height:1;padding:4px 8px;">×</a>
+  </div>
+
+  <!-- Search row -->
+  <div style="display:grid;grid-template-columns:200px 1fr;gap:24px;align-items:center;margin-bottom:28px;">
+    <div style="font-size:14px;font-weight:600;color:var(--accent);">Tìm kiếm khách hàng</div>
+    <input type="text" id="search-cccd"
+           placeholder="Tìm kiếm theo CCCD / Số điện thoại..."
+           style="font-size:14px;"
+           oninput="onSearch(this.value)">
+  </div>
+
+  <!-- Spinner -->
+  <div id="search-spinner" class="hidden" style="text-align:center;padding:20px;">
+    <div class="spinner" style="margin:0 auto;"></div>
+  </div>
+
+  <!-- Kết quả -->
+  <div id="kh-info" class="hidden" style="flex:1;">
+    <!-- Tabs -->
+    <div class="tabs" style="margin-bottom:20px;">
+      <div class="tab active" id="ktab-chung" onclick="switchKTab('chung')">Thông tin chung</div>
+      <div class="tab" id="ktab-bank"  onclick="switchKTab('bank')">Tài khoản ngân hàng</div>
+    </div>
+
+    <!-- Tab: Thông tin chung -->
+    <div id="kpanel-chung">
+      <div style="display:grid;grid-template-columns:1fr 320px;gap:32px;">
+        <!-- Left: fields -->
+        <div>
+          <div style="color:var(--accent);font-weight:700;font-size:13px;
+                      border-bottom:2px solid var(--accent);padding-bottom:6px;margin-bottom:14px;">
+            Thông tin
+          </div>
+          <div id="kh-fields-general" style="display:grid;gap:10px;"></div>
+
+          <div style="color:var(--accent);font-weight:700;font-size:13px;
+                      border-bottom:2px solid var(--accent);padding-bottom:6px;
+                      margin:20px 0 14px;">
+            Tài khoản chứng khoán
+          </div>
+          <div id="kh-fields-ck" style="display:grid;gap:10px;"></div>
+
+          <div style="color:var(--accent);font-weight:700;font-size:13px;
+                      border-bottom:2px solid var(--accent);padding-bottom:6px;
+                      margin:20px 0 14px;">
+            Phân loại khách hàng
+          </div>
+          <div id="kh-fields-phanloai" style="display:grid;gap:10px;"></div>
+        </div>
+
+        <!-- Right: CCCD photos placeholder -->
+        <div style="display:flex;flex-direction:column;gap:12px;">
+          <div style="background:var(--sidebar-bg);border:1px solid var(--border);border-radius:8px;
+                      height:150px;display:flex;align-items:center;justify-content:center;
+                      color:var(--text-3);font-size:13px;">
+            📷 Mặt trước CCCD
+          </div>
+          <div style="background:var(--sidebar-bg);border:1px solid var(--border);border-radius:8px;
+                      height:150px;display:flex;align-items:center;justify-content:center;
+                      color:var(--text-3);font-size:13px;">
+            📷 Mặt sau CCCD
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Tab: Tài khoản ngân hàng -->
+    <div id="kpanel-bank" class="hidden">
+      <div class="table-wrap" style="overflow-x:auto;">
+        <table id="bank-table">
+          <thead>
+            <tr>
+              <th>Số tài KH</th>
+              <th>Số tài khoản</th>
+              <th>Chủ tài khoản</th>
+              <th>Mã NH</th>
+              <th>Ngân hàng / Tổ chức</th>
+              <th>Mã ngân hàng</th>
+              <th>Chi nhánh</th>
+            </tr>
+          </thead>
+          <tbody id="bank-body"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <div id="no-results" class="hidden"
+       style="text-align:center;padding:60px 0;color:var(--text-3);font-size:14px;">
+    Không tìm thấy khách hàng phù hợp
+  </div>
+
+  <!-- Footer -->
+  <div style="border-top:1px solid var(--border);margin-top:auto;padding-top:20px;
+              display:flex;justify-content:space-between;align-items:center;">
+    <span style="font-size:13px;color:var(--text-2);">
+      Không tìm thấy?
+      <a href="#" onclick="skipSearch()" style="color:var(--accent);">Nhập thủ công →</a>
+    </span>
+    <button class="btn btn-primary" id="btn-dat-lenh" onclick="goStep2()" disabled>
+      ✓ Đặt lệnh
+    </button>
+  </div>
+</div>
+
+<!-- BƯỚC 2: Điền thông tin -->
+<div id="step2" class="hidden">
+  <div class="page-header">
+    <h1 class="page-title">Thêm lệnh mới</h1>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-ghost" onclick="backStep1()">← Quay lại tìm kiếm</button>
+      <button type="button" class="btn btn-primary" onclick="goStep3()">Tiếp tục →</button>
+    </div>
+  </div>
+
+  <!-- Thông tin KH đã chọn -->
+  <div id="selected-kh-banner" class="hidden"
+       style="background:var(--accent-lt);border:1px solid #bfdbfe;border-radius:8px;
+              padding:12px 16px;margin-bottom:24px;font-size:13px;color:#1e40af;">
+    ✅ Đã điền thông tin từ khách hàng: <strong id="selected-kh-name"></strong>
+    — Kiểm tra và bổ sung thêm thông tin hợp đồng bên dưới.
+  </div>
+
+  <form id="order-form" method="POST" action="{{ url_for('order_new') }}">
+    {% include '_order_fields.html' %}
+  </form>
+</div>
+
+<!-- BƯỚC 3: Xác nhận đặt lệnh -->
+<div id="step3" class="hidden">
+  <div class="page-header">
+    <h1 class="page-title">Xác nhận đặt lệnh</h1>
+    <div style="display:flex;gap:8px;">
+      <button class="btn btn-ghost" onclick="backStep2()">← Sửa lại</button>
+      <button class="btn btn-primary" id="confirm-btn" onclick="submitOrder()">✅ Xác nhận đặt lệnh</button>
+    </div>
+  </div>
+
+  <div style="display:grid;gap:20px;max-width:900px;">
+
+    <!-- Nhóm 1: Thông tin khách hàng -->
+    <div class="section">
+      <div class="section-title">Thông tin khách hàng</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
+        <div style="grid-column:1/-1;">
+          <label class="form-label">Tên khách hàng</label>
+          <input type="text" id="c-ten-kh" style="width:100%;" disabled>
+        </div>
+        <div>
+          <label class="form-label">Thông tin CMND/CCCD của KH</label>
+          <input type="text" id="c-cccd" style="width:100%;" disabled>
+        </div>
+        <div>
+          <label class="form-label">Ngày tháng năm Sinh</label>
+          <input type="text" id="c-ngay-sinh" style="width:100%;" disabled>
+        </div>
+        <div>
+          <label class="form-label">Ngày cấp</label>
+          <input type="text" id="c-ngay-cap" style="width:100%;" disabled>
+        </div>
+        <div>
+          <label class="form-label">Nơi cấp</label>
+          <input type="text" id="c-noi-cap" style="width:100%;" disabled>
+        </div>
+        <div style="grid-column:1/-1;">
+          <label class="form-label">Địa chỉ liên lạc</label>
+          <input type="text" id="c-dia-chi" style="width:100%;" disabled>
+        </div>
+        <div>
+          <label class="form-label">Số điện thoại</label>
+          <input type="text" id="c-sdt" style="width:100%;" disabled>
+        </div>
+        <div>
+          <label class="form-label">Địa chỉ email</label>
+          <input type="text" id="c-email" style="width:100%;" disabled>
+        </div>
+        <div style="grid-column:1/-1;">
+          <label class="form-label">Tài khoản nhận tiền</label>
+          <input type="text" id="c-bank" style="width:100%;" disabled>
+        </div>
+      </div>
+    </div>
+
+    <!-- Nhóm 2: Thông tin hợp đồng -->
+    <div class="section">
+      <div class="section-title">Thông tin hợp đồng</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
+        <div>
+          <label class="form-label">Số HĐ vay vốn</label>
+          <input type="text" id="c-hdvv" style="width:100%;" disabled>
+        </div>
+        <div>
+          <label class="form-label">Số HĐ thế chấp</label>
+          <input type="text" id="c-hdtc" style="width:100%;" disabled>
+        </div>
+        <div style="grid-column:1/-1;">
+          <label class="form-label">Lô Trái Phiếu</label>
+          <input type="text" id="c-lot" style="width:100%;" disabled>
+        </div>
+        <div style="grid-column:1/-1;">
+          <label class="form-label">Chính sách</label>
+          <input type="text" id="c-policy" style="width:100%;" disabled>
+        </div>
+        <div>
+          <label class="form-label">Kỳ hạn</label>
+          <input type="text" id="c-tenor" style="width:100%;" disabled>
+        </div>
+        <div>
+          <label class="form-label">Lãi suất (%/năm)</label>
+          <input type="text" id="c-ls"
+                 style="width:100%;color:var(--accent);font-weight:600;" disabled>
+        </div>
+        <div>
+          <label class="form-label">Số tiền đầu tư</label>
+          <input type="text" id="c-sotien"
+                 style="width:100%;font-weight:600;" disabled>
+        </div>
+        <div>
+          <label class="form-label">Ngày đầu tư</label>
+          <input type="text" id="c-ndt" style="width:100%;" disabled>
+        </div>
+        <div style="grid-column:1/-1;">
+          <label class="form-label">Số tiền đầu tư bằng chữ</label>
+          <input type="text" id="c-stbc" style="width:100%;font-style:italic;" disabled>
+        </div>
+        <div style="grid-column:1/-1;">
+          <label class="form-label">Ngày giao dịch bằng chữ</label>
+          <input type="text" id="c-nbc" style="width:100%;" disabled>
+        </div>
+        <div style="grid-column:1/-1;">
+          <label class="form-label">Ngày đáo hạn HĐ</label>
+          <input type="text" id="c-ndh" style="width:100%;" disabled>
+        </div>
+        <div>
+          <label class="form-label">Số ngày cho vay</label>
+          <input type="text" id="c-songay" style="width:100%;" disabled>
+        </div>
+        <div>
+          <label class="form-label">SL trái phiếu thế chấp</label>
+          <input type="text" id="c-sl-tp" style="width:100%;" disabled>
+        </div>
+        <div style="grid-column:1/-1;">
+          <label class="form-label">Số tiền thực nhận</label>
+          <input type="text" id="c-tien-tn"
+                 style="width:100%;font-weight:600;color:var(--accent);" disabled>
+        </div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+{% endif %}
+{% endblock %}
+
+{% block head_extra %}
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script>
+let selectedKH  = null;
+let selectedLot = null;
+let searchTimer = null;
+
+function onSearch(val) {
+  clearTimeout(searchTimer);
+  selectedKH = null;
+  document.getElementById('btn-dat-lenh').disabled = true;
+  document.getElementById('kh-info').classList.add('hidden');
+  document.getElementById('no-results').classList.add('hidden');
+  if (!val.trim() || val.trim().length < 2) return;
+  searchTimer = setTimeout(() => doSearch(val.trim()), 400);
+}
+
+async function doSearch(q) {
+  document.getElementById('search-spinner').classList.remove('hidden');
+  try {
+    const r   = await fetch('/api/search-customer?q=' + encodeURIComponent(q));
+    const kh  = await r.json();
+    document.getElementById('search-spinner').classList.add('hidden');
+
+    if (!kh) {
+      document.getElementById('no-results').classList.remove('hidden');
+      return;
+    }
+    selectedKH = kh;
+    renderKH(kh);
+    document.getElementById('kh-info').classList.remove('hidden');
+    document.getElementById('btn-dat-lenh').disabled = false;
+  } catch(e) {
+    document.getElementById('search-spinner').classList.add('hidden');
+    document.getElementById('no-results').classList.remove('hidden');
+  }
+}
+
+function renderKH(kh) {
+  const row = (label, val) => val
+    ? `<div style="display:grid;grid-template-columns:200px 1fr;gap:8px;font-size:13px;">
+         <span style="color:var(--accent);font-weight:500;">${esc(label)}</span>
+         <span>${esc(val)}</span>
+       </div>` : '';
+
+  document.getElementById('kh-fields-general').innerHTML = [
+    row('Mã KH : *',    kh.ma_kh),
+    row('Họ tên:',      kh.ho_ten),
+    row('Số ĐT:',       kh.so_dt),
+    row('email:',       kh.email),
+    row('Giới tính:',   kh.gioi_tinh),
+    row('Ngày sinh : *',kh.ngay_sinh),
+    row('Quốc tịch:',   kh.quoc_tich),
+    row('Số CMT/CCCD/HC:',kh.so_cmnd),
+    row('Ngày cấp:',    kh.ngay_cap),
+    row('Ngày hết hạn:',kh.ngay_het_han),
+    row('Nơi cấp:',     kh.noi_cap),
+    row('Địa chỉ liên hệ:',kh.dia_chi),
+  ].join('');
+
+  document.getElementById('kh-fields-ck').innerHTML = [
+    row('Mã TK chứng khoán:',  kh.ma_tk_ck),
+    row('Nơi cấp tk chứng khoán:', kh.noi_cap_tk_ck),
+    row('Ngày hết hạn:',       kh.ngay_het_han_ck),
+    row('Thu nhập năm:',       kh.thu_nhap_nam),
+    row('Thuế thu nhập năm:',  kh.thue_thu_nhap_nam),
+  ].join('');
+
+  document.getElementById('kh-fields-phanloai').innerHTML = [
+    row('Nhóm KH:',            kh.nhom_kh),
+    row('Trạng thái NĐTCN:',   kh.trang_thai_ndtcn),
+  ].join('');
+
+  const banks = kh.tai_khoan_ngan_hang || [];
+  document.getElementById('bank-body').innerHTML = banks.map(b => `
+    <tr>
+      <td class="text-secondary" style="font-size:12px;">${esc(b.so_tai_kh)}</td>
+      <td class="text-secondary" style="font-size:12px;">${esc(b.so_tai_khoan)}</td>
+      <td><strong>${esc(b.chu_tai_khoan)}</strong></td>
+      <td><span class="badge badge-blue">${esc(b.ma_nh)}</span></td>
+      <td style="font-size:13px;">${esc(b.ngan_hang)}</td>
+      <td class="text-secondary">${esc(b.ma_ngan_hang)}</td>
+      <td class="text-secondary">${esc(b.chi_nhanh)}</td>
+    </tr>`).join('');
+}
+
+function switchKTab(name) {
+  ['chung','bank'].forEach(t => {
+    document.getElementById('ktab-' + t).classList.toggle('active', t === name);
+    document.getElementById('kpanel-' + t).classList.toggle('hidden', t !== name);
+  });
+}
+
+function goStep2() {
+  document.getElementById('step1').classList.add('hidden');
+  document.getElementById('step2').classList.remove('hidden');
+  if (selectedKH) {
+    const kh = selectedKH;
+    const mapping = {
+      'Tên khách hàng':                kh.ho_ten,
+      'Thông tin CMND/CCCD của KH':    kh.so_cmnd,
+      'Ngày cấp':                      kh.ngay_cap,
+      'Nơi cấp':                       kh.noi_cap,
+      'Địa chỉ liên lạc':              kh.dia_chi,
+      'Số điện thoại':                 kh.so_dt,
+      'Ngày tháng năm Sinh':           kh.ngay_sinh,
+      'ĐỊA CHỈ EMAIL ':                kh.email,
+      'SỐ TKCK':                       kh.ma_tk_ck,
+      'NƠI MỞ TKCK':                   kh.noi_cap_tk_ck,
+    };
+    Object.entries(mapping).forEach(([name, val]) => {
+      const el = document.querySelector(`[name="${CSS.escape(name)}"]`);
+      if (el && val) el.value = val;
+    });
+
+    // Populate bank account dropdown
+    const sel = document.getElementById('bank-account-select');
+    if (sel) {
+      sel.innerHTML = '<option value="">-- Chọn tài khoản ngân hàng --</option>';
+      (kh.tai_khoan_ngan_hang || []).forEach((acc, i) => {
+        const bank = acc.ngan_hang || acc.ma_nh || '';
+        const branch = acc.chi_nhanh ? ` / ${acc.chi_nhanh}` : '';
+        const label = `${acc.so_tai_khoan} — ${bank}${branch}`;
+        const opt = new Option(label, i);
+        sel.add(opt);
+      });
+    }
+
+    document.getElementById('selected-kh-banner').classList.remove('hidden');
+    document.getElementById('selected-kh-name').textContent = kh.ho_ten || '';
+  }
+}
+
+function onBankSelect(sel) {
+  if (!selectedKH || sel.value === '' || sel.value === '__manual__') return;
+  const acc = (selectedKH.tai_khoan_ngan_hang || [])[parseInt(sel.value)];
+  if (!acc) return;
+  const setVal = (name, val) => {
+    const el = document.querySelector(`[name="${CSS.escape(name)}"]`);
+    if (el) el.value = val || '';
+  };
+  setVal('Tài khoản KH ',    acc.so_tai_khoan);
+  setVal('Tên tài khoản KH', acc.chu_tai_khoan);
+  const branch = acc.chi_nhanh ? ` - ${acc.chi_nhanh}` : '';
+  setVal('Ngân hàng - chi nhánh', (acc.ngan_hang || acc.ma_nh || '') + branch);
+}
+
+function skipSearch() {
+  selectedKH = null;
+  document.getElementById('step1').classList.add('hidden');
+  document.getElementById('step2').classList.remove('hidden');
+}
+
+function backStep1() {
+  document.getElementById('step2').classList.add('hidden');
+  document.getElementById('step1').classList.remove('hidden');
+}
+
+function esc(s) {
+  return String(s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+}
+
+// ── Lô TP dropdown ────────────────────────────────────────────────────────────
+let allLots = [];
+let holidays = [];        // mảng "yyyy-mm-dd"
+let selectedPct = 0;      // % thế chấp từ chính sách đang chọn
+
+async function loadLots() {
+  try {
+    const r = await fetch('/api/bond-lots');
+    allLots = await r.json();
+    const sel = document.getElementById('lot-select');
+    if (!sel) return;
+    allLots.forEach(l => {
+      const label = `${l.ma_vk}${l.ma_vsdc ? ' / ' + l.ma_vsdc : ''}${l.to_chuc_ph ? '  —  ' + l.to_chuc_ph : ''}`;
+      sel.add(new Option(label, l.id));
+    });
+  } catch(e) {}
+}
+
+function onLotSelect(id) {
+  const lot = allLots.find(l => l.id === parseInt(id));
+  if (!lot) { selectedLot = null; document.getElementById('lot-sub').style.display = 'none'; return; }
+  selectedLot = lot;
+
+  const sub = document.getElementById('lot-sub');
+  if (sub) {
+    sub.textContent = [
+      lot.to_chuc_ph,
+      lot.ngay_ph ? 'Phát hành: ' + lot.ngay_ph : '',
+      lot.ngay_dh ? 'Đáo hạn TP: ' + lot.ngay_dh : '',
+    ].filter(Boolean).join('  |  ');
+    sub.style.display = 'block';
+  }
+
+  // Fill hidden inputs trong section Thông tin tài khoản & trái phiếu
+  const setVal = (name, val) => {
+    const el = document.querySelector(`[name="${CSS.escape(name)}"]`);
+    if (el && val !== undefined) el.value = val || '';
+  };
+  setVal('Mã trái phiếu (theo Văn kiện trái phiếu)', lot.ma_vk);
+  setVal('Mã trái phiếu (do VSDC cấp)',              lot.ma_vsdc);
+  setVal('TỔ CHỨC PH',                                lot.to_chuc_ph);
+  setVal('NGÀY PHÁT HÀNH ',                           lot.ngay_ph);
+  setVal('NGÀY ĐÁO HẠN ',                             lot.ngay_dh);
+}
+
+// ── Chính sách / Kỳ hạn ──────────────────────────────────────────────────────
+let activePolicies = [];
+let currentTenors  = [];
+
+async function loadPolicies() {
+  try {
+    const r = await fetch('/api/active-policies');
+    activePolicies = await r.json();
+    const sel = document.getElementById('cs-sel');
+    if (!sel) return;
+    activePolicies.forEach(p => sel.add(new Option(p.ten_chinh_sach, p.id)));
+  } catch(e) {}
+}
+
+async function loadHolidays() {
+  try {
+    const r = await fetch('/api/holidays');
+    holidays = await r.json(); // ["yyyy-mm-dd", ...]
+  } catch(e) {}
+}
+
+// EDATE: cộng months tháng, giống Excel (cuối tháng giữ nguyên cuối tháng)
+function edate(date, months) {
+  const d = new Date(date);
+  const targetMonth = d.getMonth() + months;
+  const y = d.getFullYear() + Math.floor(targetMonth / 12);
+  const m = ((targetMonth % 12) + 12) % 12;
+  const lastDay = new Date(y, m + 1, 0).getDate();
+  return new Date(y, m, Math.min(d.getDate(), lastDay));
+}
+
+// Tìm ngày làm việc đầu tiên >= date (né T7/CN + ngày lễ)
+function nextWorkdayOnOrAfter(date) {
+  const d = new Date(date);
+  const holidaySet = new Set(holidays);
+  const fmt = x => `${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,'0')}-${String(x.getDate()).padStart(2,'0')}`;
+  while (d.getDay() === 0 || d.getDay() === 6 || holidaySet.has(fmt(d))) {
+    d.setDate(d.getDate() + 1);
+  }
+  return d;
+}
+
+async function onPolicyChange(pid) {
+  const khSel = document.getElementById('kh-sel');
+  khSel.innerHTML = '<option value="">-- Chọn kỳ hạn --</option>';
+  khSel.disabled = true;
+  document.getElementById('ls-field').value = '';
+  document.getElementById('h-kyhan').value  = '';
+  selectedPct = 0;
+  if (!pid) return;
+  const policy = activePolicies.find(p => p.id == pid);
+  selectedPct = policy ? (policy.pct_the_chap || 0) : 0;
+  try {
+    const r = await fetch(`/api/policies/${pid}/tenors`);
+    currentTenors = await r.json();
+    currentTenors.forEach(t => khSel.add(new Option(`${t.ky_han} tháng  —  ${t.loi_tuc}%/năm`, t.id)));
+    khSel.disabled = false;
+  } catch(e) {}
+}
+
+function onTenorChange(sel) {
+  const tenor = currentTenors.find(t => t.id === parseInt(sel.value));
+  if (!tenor) { document.getElementById('ls-field').value = ''; return; }
+  document.getElementById('ls-field').value = tenor.loi_tuc;
+  document.getElementById('h-kyhan').value  = tenor.ky_han;
+  const ndt = document.getElementById('ndt-field').value;
+  if (ndt) onInvestDate(ndt);
+}
+
+function onInvestDate(val) {
+  // val = "dd/mm/yyyy" từ flatpickr
+  const match = val.match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!match) {
+    document.getElementById('h-ndh').value   = '';
+    document.getElementById('h-songay').value = '';
+    recalcAll();
+    return;
+  }
+  const [, d, m, y] = match;
+  const investDate = new Date(parseInt(y), parseInt(m) - 1, parseInt(d));
+  document.getElementById('h-ngd').value = `${d}/${m}/${y}`;
+  document.getElementById('h-nbc').value = `ngày ${parseInt(d)} tháng ${parseInt(m)} năm ${y}`;
+
+  const ky = parseInt(document.getElementById('h-kyhan').value || '0');
+  if (ky > 0) {
+    // WORKDAY(EDATE(investDate, ky) - 1, 1) = ngày làm việc đầu tiên >= EDATE
+    const maturity = nextWorkdayOnOrAfter(edate(investDate, ky));
+    const dd2 = String(maturity.getDate()).padStart(2, '0');
+    const mm2 = String(maturity.getMonth() + 1).padStart(2, '0');
+    document.getElementById('h-ndh').value = `${dd2}/${mm2}/${maturity.getFullYear()}`;
+    // Số ngày cho vay
+    const diffDays = Math.round((maturity - investDate) / 86400000);
+    document.getElementById('h-songay').value = diffDays;
+  } else {
+    document.getElementById('h-ndh').value   = '';
+    document.getElementById('h-songay').value = '';
+  }
+  recalcAll();
+}
+
+// Tính SL TP thế chấp và Số tiền thực nhận
+function recalcAll() {
+  const rawAmount = (document.getElementById('st-field')?.value || '').replace(/[.,\s]/g, '');
+  const amount    = parseInt(rawAmount) || 0;
+  const laiSuat   = parseFloat(document.getElementById('ls-field')?.value) || 0;
+  const songay    = parseInt(document.getElementById('h-songay')?.value)   || 0;
+
+  if (amount > 0 && selectedPct > 0) {
+    const slTp = Math.ceil(amount * selectedPct / 100 / 100000);
+    document.getElementById('h-sl-tp').value = slTp.toLocaleString('vi-VN');
+  } else {
+    document.getElementById('h-sl-tp').value = '';
+  }
+
+  if (amount > 0 && laiSuat > 0 && songay > 0) {
+    const tienTN = Math.round(amount + amount * laiSuat / 100 * songay / 365);
+    document.getElementById('h-tien-tn').value = tienTN.toLocaleString('de-DE');
+  } else {
+    document.getElementById('h-tien-tn').value = '';
+  }
+
+  document.getElementById('h-stbc').value = amount > 0 ? numToViWords(amount) : '';
+}
+
+// ── Step 3: Xác nhận ─────────────────────────────────────────────────────────
+async function goStep3() {
+  const errs = [];
+  if (!selectedLot)                                          errs.push('Chưa chọn Lô TP');
+  if (!document.getElementById('cs-sel').value)              errs.push('Chưa chọn Chính sách');
+  if (!document.getElementById('kh-sel').value)              errs.push('Chưa chọn Kỳ hạn');
+  if (!document.getElementById('st-field').value.trim())     errs.push('Chưa nhập Số tiền đầu tư');
+  if (!document.getElementById('ndt-field').value)           errs.push('Chưa chọn Ngày đầu tư');
+  if (errs.length) { alert(errs.join('\n')); return; }
+
+  // Thông tin khách hàng
+  document.getElementById('c-ten-kh').value    = document.querySelector('[name="Tên khách hàng"]')?.value || '';
+  document.getElementById('c-cccd').value      = document.querySelector('[name="Thông tin CMND/CCCD của KH"]')?.value || '';
+  document.getElementById('c-ngay-sinh').value = document.querySelector('[name="Ngày tháng năm Sinh"]')?.value || '';
+  document.getElementById('c-ngay-cap').value  = document.querySelector('[name="Ngày cấp"]')?.value || '';
+  document.getElementById('c-noi-cap').value   = document.querySelector('[name="Nơi cấp"]')?.value || '';
+  document.getElementById('c-dia-chi').value   = document.querySelector('[name="Địa chỉ liên lạc"]')?.value || '';
+  document.getElementById('c-sdt').value       = document.querySelector('[name="Số điện thoại"]')?.value || '';
+  document.getElementById('c-email').value     = document.querySelector('[name="ĐỊA CHỈ EMAIL "]')?.value || '';
+  const bankSel = document.getElementById('bank-account-select');
+  document.getElementById('c-bank').value      = bankSel?.options[bankSel?.selectedIndex]?.text || '';
+
+  // Thông tin hợp đồng
+  const policy = activePolicies.find(p => p.id == document.getElementById('cs-sel').value);
+  const tenor  = currentTenors.find(t  => t.id === parseInt(document.getElementById('kh-sel').value));
+  const lotSel = document.getElementById('lot-select');
+
+  // Fetch seq để preview mã HĐ
+  try {
+    const seqRes = await fetch('/api/next-order-seq');
+    const seqData = await seqRes.json();
+    const seqStr  = String(seqData.seq).padStart(5, '0');
+    const maVk    = selectedLot?.ma_vk || '';
+    document.getElementById('c-hdvv').value = `${seqStr}/HDVV-KGALAXY.${maVk}-KSG01`;
+    document.getElementById('c-hdtc').value = `${seqStr}/HDTC-KGALAXY.${maVk}-KSG01`;
+  } catch(e) {
+    document.getElementById('c-hdvv').value = '';
+    document.getElementById('c-hdtc').value = '';
+  }
+
+  document.getElementById('c-lot').value    = lotSel?.options[lotSel?.selectedIndex]?.text || '';
+  document.getElementById('c-policy').value = policy?.ten_chinh_sach || '';
+  document.getElementById('c-tenor').value  = tenor ? `${tenor.ky_han} tháng` : '';
+  document.getElementById('c-ls').value     = document.getElementById('ls-field').value || '';
+  const rawST = document.getElementById('st-field').value.replace(/\D/g, '');
+  document.getElementById('c-sotien').value = rawST ? parseInt(rawST).toLocaleString('de-DE') + ' đồng' : '';
+  document.getElementById('c-stbc').value   = document.getElementById('h-stbc').value || '';
+  document.getElementById('c-ndt').value    = document.getElementById('ndt-field').value || '';
+  document.getElementById('c-nbc').value    = document.getElementById('h-nbc').value || '';
+  document.getElementById('c-ndh').value    = document.getElementById('h-ndh').value || '';
+
+  const songay = document.getElementById('h-songay').value;
+  document.getElementById('c-songay').value = songay || '';
+
+  document.getElementById('c-sl-tp').value   = document.getElementById('h-sl-tp').value || '';
+  document.getElementById('c-tien-tn').value = document.getElementById('h-tien-tn').value || '';
+
+  document.getElementById('step2').classList.add('hidden');
+  document.getElementById('step3').classList.remove('hidden');
+}
+
+function backStep2() {
+  document.getElementById('step3').classList.add('hidden');
+  document.getElementById('step2').classList.remove('hidden');
+}
+
+function submitOrder() {
+  const btn = document.getElementById('confirm-btn');
+  btn.disabled = true;
+  btn.textContent = '⏳ Đang xử lý...';
+  document.getElementById('order-form').submit();
+}
+
+loadLots();
+loadPolicies();
+loadHolidays();
+
+// Init Flatpickr cho Ngày đầu tư
+const _ndtEl = document.getElementById('ndt-field');
+if (_ndtEl) {
+  flatpickr(_ndtEl, {
+    dateFormat: 'd/m/Y',
+    allowInput: false,
+    disableMobile: true,
+    onChange: function(selectedDates, dateStr) {
+      onInvestDate(dateStr);
+    }
+  });
+}
+</script>
+{% endblock %}
