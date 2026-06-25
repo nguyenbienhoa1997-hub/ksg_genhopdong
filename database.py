@@ -84,18 +84,26 @@ def delete_template(id):
 
 # ── Contracts ──
 
-def get_contracts(search="", template_code=""):
-    sql = "SELECT * FROM contracts WHERE 1=1"
+def get_contracts(search="", template_code="", page=1, per_page=20):
+    where = "WHERE 1=1"
     params = []
     if search:
-        sql += " AND name LIKE ?"
-        params.append(f"%{search}%")
+        where += " AND (name LIKE ? OR row_data LIKE ?)"
+        params.extend([f"%{search}%", f"%{search}%"])
     if template_code:
-        sql += " AND template_code = ?"
+        where += " AND template_code = ?"
         params.append(template_code)
-    sql += " ORDER BY created_at DESC"
+
+    offset = (page - 1) * per_page
     with get_db() as conn:
-        return conn.execute(sql, params).fetchall()
+        total = conn.execute(
+            f"SELECT COUNT(*) FROM contracts {where}", params
+        ).fetchone()[0]
+        rows = conn.execute(
+            f"SELECT * FROM contracts {where} ORDER BY created_at DESC LIMIT ? OFFSET ?",
+            params + [per_page, offset]
+        ).fetchall()
+    return rows, total
 
 
 def get_contract(id):
@@ -113,6 +121,30 @@ def add_contract(name, template_id, template_name, template_code, pdf_path, row_
                VALUES (?,?,?,?,?,?,?)""",
             (name, template_id, template_name, template_code, pdf_path, row_data, batch_id)
         )
+
+
+def get_contracts_by_batch(batch_id):
+    with get_db() as conn:
+        return conn.execute(
+            "SELECT * FROM contracts WHERE batch_id = ? ORDER BY template_code",
+            (batch_id,)
+        ).fetchall()
+
+
+def get_contracts_same_customer(batch_id, customer_name):
+    """Lấy tất cả HĐ cùng khách hàng trong 1 batch (HDVV, HDTC...)"""
+    with get_db() as conn:
+        return conn.execute(
+            "SELECT * FROM contracts WHERE batch_id = ? AND name LIKE ? ORDER BY template_code",
+            (batch_id, f"{customer_name}%")
+        ).fetchall()
+
+
+def update_contracts_row_data(ids, row_data_json):
+    with get_db() as conn:
+        for cid in ids:
+            conn.execute("UPDATE contracts SET row_data = ? WHERE id = ?",
+                         (row_data_json, cid))
 
 
 def delete_contract(id):

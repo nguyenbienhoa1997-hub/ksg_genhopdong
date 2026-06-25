@@ -23,13 +23,45 @@ db.init_db()
 def contracts():
     search        = request.args.get("q", "")
     template_code = request.args.get("template", "")
-    items         = db.get_contracts(search=search, template_code=template_code)
+    page          = max(1, request.args.get("page", 1, type=int))
+    per_page      = request.args.get("per_page", 15, type=int)
+    if per_page not in (15, 30, 50, 100):
+        per_page = 15
+
+    items, total  = db.get_contracts(search=search, template_code=template_code,
+                                     page=page, per_page=per_page)
     all_templates = db.get_templates()
+    total_pages   = max(1, (total + per_page - 1) // per_page)
+    page          = min(page, total_pages)
+    from_row      = (page - 1) * per_page + 1 if total else 0
+    to_row        = min(page * per_page, total)
+
+    contracts_list = []
+    for c in items:
+        c = dict(c)
+        try:
+            rd = json.loads(c.get("row_data") or "{}")
+        except Exception:
+            rd = {}
+        c["ten_kh"]   = rd.get("Tên khách hàng", "")
+        c["so_hd"]    = rd.get("Số Hợp đồng vay vốn", "")
+        c["so_hdtc"]  = rd.get("Số HĐ Thế chấp", "")
+        c["cccd"]     = rd.get("Thông tin CMND/CCCD của KH", "")
+        c["lai_suat"] = rd.get("Lãi suất", "")
+        c["ky_han"]   = rd.get("Kỳ hạn theo tháng", "")
+        contracts_list.append(c)
+
     return render_template("contracts.html",
-                           contracts=items,
+                           contracts=contracts_list,
                            templates=all_templates,
                            search=search,
-                           selected_template=template_code)
+                           selected_template=template_code,
+                           page=page,
+                           per_page=per_page,
+                           total_pages=total_pages,
+                           total=total,
+                           from_row=from_row,
+                           to_row=to_row)
 
 
 @app.route("/contracts/<int:id>")
@@ -37,8 +69,74 @@ def contract_detail(id):
     contract = db.get_contract(id)
     if not contract:
         return redirect(url_for("contracts"))
-    row_data = json.loads(contract["row_data"]) if contract["row_data"] else {}
-    return render_template("contract_detail.html", contract=contract, row_data=row_data)
+    import re as _re
+    raw       = json.loads(contract["row_data"]) if contract["row_data"] else {}
+    # Bỏ các cột tự sinh tên (Col32, Col33...) và cột trống giá trị
+    row_data  = {k: v for k, v in raw.items()
+                 if not _re.match(r'^Col\d+$', str(k)) and str(v).strip()}
+    # Dùng prefix từ DB name (ổn định, không bị ảnh hưởng khi row_data bị sửa)
+    name_prefix = contract["name"].rsplit(" - ", 1)[0]
+    if contract["batch_id"] and name_prefix:
+        batch_contracts = db.get_contracts_same_customer(contract["batch_id"], name_prefix)
+    else:
+        batch_contracts = [contract]
+    return render_template("contract_detail.html",
+                           contract=contract,
+                           row_data=row_data,
+                           batch_contracts=batch_contracts)
+
+
+@app.route("/contracts/<int:id>/save-data", methods=["POST"])
+def save_contract_data(id):
+    contract = db.get_contract(id)
+    if not contract:
+        flash("Không tìm thấy hợp đồng", "error")
+        return redirect(url_for("contracts"))
+
+    old_data = json.loads(contract["row_data"]) if contract["row_data"] else {}
+    new_data  = {k: request.form.get(k, v) for k, v in old_data.items()}
+    new_json  = json.dumps(new_data, ensure_ascii=False)
+
+    name_prefix = contract["name"].rsplit(" - ", 1)[0]
+    if contract["batch_id"] and name_prefix:
+        related_ids = [c["id"] for c in db.get_contracts_same_customer(contract["batch_id"], name_prefix)]
+    else:
+        related_ids = [id]
+    db.update_contracts_row_data(related_ids, new_json)
+
+    flash("Đã lưu thông tin", "success")
+    return redirect(url_for("contract_detail", id=id))
+
+
+@app.route("/contracts/<int:id>/regenerate", methods=["POST"])
+def regenerate_contract(id):
+    contract = db.get_contract(id)
+    if not contract:
+        return jsonify({"error": "Không tìm thấy"}), 404
+
+    row_data    = json.loads(contract["row_data"]) if contract["row_data"] else {}
+    name_prefix = contract["name"].rsplit(" - ", 1)[0]
+
+    if contract["batch_id"] and name_prefix:
+        related = db.get_contracts_same_customer(contract["batch_id"], name_prefix)
+    else:
+        related = [contract]
+
+    errors, count = [], 0
+    for c in related:
+        c   = dict(c)
+        tpl = db.get_template(c["template_id"])
+        if not tpl:
+            errors.append(f"Không tìm thấy mẫu {c['template_code']}")
+            continue
+        try:
+            os.makedirs(os.path.dirname(c["pdf_path"]), exist_ok=True)
+            gen.generate_pdf(tpl["file_path"], row_data, c["pdf_path"])
+            count += 1
+        except Exception as e:
+            errors.append(f"Mẫu {c['template_code']}: {e}")
+
+    return jsonify({"success": True, "count": count, "errors": errors})
 
 
 @app.route("/contracts/<int:id>/delete", methods=["POST"])
@@ -118,7 +216,7 @@ def do_generate():
         return jsonify({"error": "Session hết hạn, vui lòng upload lại"}), 400
 
     try:
-        wb   = load_workbook(temp_path, data_only=True)
+        wb   = load_workbook(temp_path, read_only=True, data_only=True)
         ws   = wb.active
         rows = list(ws.iter_rows(values_only=True))
         wb.close()
@@ -174,7 +272,10 @@ def do_generate():
                 errors.append(f"Dòng {row_idx} / Mẫu {tpl['code']}: {e}")
 
     db.add_batch(batch_id, os.path.basename(temp_path), success)
-    os.remove(temp_path)
+    try:
+        os.remove(temp_path)
+    except Exception:
+        pass
 
     return jsonify({"success": True, "count": success, "errors": errors, "batch_id": batch_id})
 

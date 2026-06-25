@@ -6,16 +6,13 @@
 
 <div class="page-header">
   <h1 class="page-title">{{ contract.name }}</h1>
-  <div style="display:flex;gap:8px;">
-    <a href="{{ url_for('download_contract', id=contract.id) }}" class="btn btn-success">
-      ⬇ Tải PDF
-    </a>
-    <form id="del-form" method="POST"
+  <div style="display:flex;gap:8px;align-items:center;">
+    <button id="btn-edit" class="btn btn-ghost" onclick="enterEditMode()">✏️ Sửa thông tin</button>
+    <button id="btn-regen" class="btn btn-primary" onclick="doRegenerate()">🔄 Cập nhật hợp đồng</button>
+    <form method="POST"
           action="{{ url_for('delete_contract', id=contract.id) }}" style="display:inline;">
-      <button type="button" class="btn btn-danger"
-              onclick="confirmDelete('del-form', 'Xóa hợp đồng này không thể khôi phục. Tiếp tục?')">
-        Xóa
-      </button>
+      <button type="submit" class="btn btn-danger"
+              onclick="return confirm('Xóa hợp đồng này? Không thể khôi phục.')">Xóa</button>
     </form>
   </div>
 </div>
@@ -26,9 +23,8 @@
   <div class="tab" id="tab-hd"   onclick="switchTab('hd')">Hợp đồng</div>
 </div>
 
-<!-- Tab: Thông tin -->
+<!-- ── Tab: Thông tin ── -->
 <div id="panel-info">
-  <!-- Meta -->
   <div class="section">
     <div class="section-title">Thông tin chung</div>
     <div class="detail-grid">
@@ -47,12 +43,6 @@
         <div class="detail-label">Ngày tạo</div>
         <div class="detail-value">{{ contract.created_at[:16].replace('T', ' ') }}</div>
       </div>
-      <div>
-        <div class="detail-label">Batch ID</div>
-        <div class="detail-value text-tertiary" style="font-size:12px;font-family:monospace;">
-          {{ contract.batch_id }}
-        </div>
-      </div>
     </div>
   </div>
 
@@ -60,40 +50,81 @@
 
   <!-- Dữ liệu từ Excel -->
   <div class="section">
-    <div class="section-title">Dữ liệu từ Excel</div>
-    {% if row_data %}
-    <div class="table-wrap">
-      <table>
-        <thead>
-          <tr><th style="width:40%;">Trường</th><th>Giá trị</th></tr>
-        </thead>
-        <tbody>
-          {% for key, val in row_data.items() %}
-          <tr>
-            <td class="text-secondary">{{ key }}</td>
-            <td>{{ val if val else '—' }}</td>
-          </tr>
-          {% endfor %}
-        </tbody>
-      </table>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px;">
+      <div class="section-title" style="margin-bottom:0;">Dữ liệu từ Excel</div>
+      <div id="edit-actions" style="display:none;gap:8px;">
+        <button class="btn btn-ghost btn-sm" onclick="cancelEdit()">Hủy</button>
+        <button class="btn btn-primary btn-sm" form="form-edit" type="submit">💾 Lưu lại</button>
+      </div>
     </div>
+
+    {% if row_data %}
+    <form id="form-edit" method="POST"
+          action="{{ url_for('save_contract_data', id=contract.id) }}">
+      <div class="table-wrap">
+        <table>
+          <thead>
+            <tr><th style="width:40%;">Trường</th><th>Giá trị</th></tr>
+          </thead>
+          <tbody>
+            {% for key, val in row_data.items() %}
+            <tr>
+              <td class="text-secondary">{{ key }}</td>
+              <td>
+                <!-- View mode -->
+                <span class="view-val">{{ val if val else '—' }}</span>
+                <!-- Edit mode -->
+                <input class="edit-input" name="{{ key }}" value="{{ val }}"
+                       style="display:none;width:100%;box-sizing:border-box;
+                              padding:4px 8px;border:1px solid var(--border);
+                              border-radius:4px;font-size:14px;">
+              </td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+    </form>
     {% else %}
     <p class="text-tertiary">Không có dữ liệu</p>
     {% endif %}
   </div>
 </div>
 
-<!-- Tab: Hợp đồng -->
-<div id="panel-hd" class="hidden" style="text-align:center;padding:60px 20px;">
-  <div style="font-size:48px;margin-bottom:20px;">📄</div>
-  <div style="font-size:16px;font-weight:500;margin-bottom:8px;">{{ contract.name }}.pdf</div>
-  <div class="text-secondary" style="font-size:13px;margin-bottom:28px;">
-    Bấm nút bên dưới để tải file PDF về máy
+<!-- ── Tab: Hợp đồng ── -->
+<div id="panel-hd" class="hidden">
+  <div class="section">
+    <div class="section-title">Các loại hợp đồng</div>
+    <div class="table-wrap">
+      <table>
+        <thead>
+          <tr>
+            <th>Loại hợp đồng</th>
+            <th style="width:80px;text-align:center;">Mã mẫu</th>
+            <th style="width:120px;text-align:right;">Tải về</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for bc in batch_contracts %}
+          <tr>
+            <td>
+              <span style="font-size:18px;margin-right:10px;">📄</span>
+              <strong>{{ bc.template_name }}</strong>
+            </td>
+            <td style="text-align:center;">
+              <span class="badge badge-blue">{{ bc.template_code }}</span>
+            </td>
+            <td style="text-align:right;">
+              <a href="{{ url_for('download_contract', id=bc.id) }}" class="btn btn-success btn-sm">
+                ⬇ Tải PDF
+              </a>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
   </div>
-  <a href="{{ url_for('download_contract', id=contract.id) }}" class="btn btn-success"
-     style="font-size:15px;padding:12px 28px;">
-    ⬇ Tải PDF về
-  </a>
 </div>
 {% endblock %}
 
@@ -104,6 +135,46 @@ function switchTab(name) {
     document.getElementById('tab-' + t).classList.toggle('active', t === name);
     document.getElementById('panel-' + t).classList.toggle('hidden', t !== name);
   });
+}
+
+function enterEditMode() {
+  document.querySelectorAll('.view-val').forEach(el => el.style.display = 'none');
+  document.querySelectorAll('.edit-input').forEach(el => el.style.display = '');
+  document.getElementById('edit-actions').style.display = 'flex';
+  document.getElementById('btn-edit').style.display = 'none';
+}
+
+function cancelEdit() {
+  document.querySelectorAll('.view-val').forEach(el => el.style.display = '');
+  document.querySelectorAll('.edit-input').forEach(el => el.style.display = 'none');
+  document.getElementById('edit-actions').style.display = 'none';
+  document.getElementById('btn-edit').style.display = '';
+}
+
+async function doRegenerate() {
+  const btn = document.getElementById('btn-regen');
+  const orig = btn.textContent;
+  btn.disabled = true;
+  btn.textContent = '⏳ Đang tạo lại...';
+
+  try {
+    const r = await fetch('{{ url_for("regenerate_contract", id=contract.id) }}',
+                          { method: 'POST' });
+    const d = await r.json();
+    if (d.success) {
+      showToast('✅ Đã cập nhật ' + d.count + ' hợp đồng', 'success');
+      if (d.errors && d.errors.length) {
+        showToast('⚠️ ' + d.errors.join(', '), 'error');
+      }
+    } else {
+      showToast('❌ ' + (d.error || 'Lỗi không xác định'), 'error');
+    }
+  } catch(e) {
+    showToast('❌ Lỗi kết nối: ' + e.message, 'error');
+  }
+
+  btn.disabled = false;
+  btn.textContent = orig;
 }
 </script>
 {% endblock %}

@@ -1,3 +1,16 @@
+// ── Action dropdown / split button ──
+function toggleDropdown(btn) {
+  const dd = btn.closest('.action-dropdown, .split-btn');
+  const isOpen = dd.classList.contains('open');
+  document.querySelectorAll('.action-dropdown.open, .split-btn.open').forEach(d => d.classList.remove('open'));
+  if (!isOpen) dd.classList.add('open');
+}
+document.addEventListener('click', (e) => {
+  if (!e.target.closest('.action-dropdown, .split-btn')) {
+    document.querySelectorAll('.action-dropdown.open, .split-btn.open').forEach(d => d.classList.remove('open'));
+  }
+});
+
 // ── Toast auto-dismiss ──
 document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.toast').forEach(t => {
