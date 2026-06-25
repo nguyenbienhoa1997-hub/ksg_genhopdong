@@ -70,7 +70,7 @@ NAPAS_BANKS = {
     "970446": "Ngân hàng Hợp Tác Xã Việt Nam (CCF)",
     "970448": "Ngân hàng TMCP Phương Đông (OCB)",
     "970449": "Ngân hàng TMCP Bưu Điện Liên Việt (LPB)",
-    "970452": "NH TMCP Kiên Long (KLB)",
+    "970452": "NH TMCP Kiên Long (KienlongBank)",
     "970454": "Ngân hàng TMCP Bản Việt (VCCB)",
     "970455": "Ngân hàng Công nghiệp Hàn Quốc - Chi nhánh Hà Nội (IBK-HN)",
     "970456": "Ngân hàng Industrial Bank of Korea - Chi nhánh Hồ Chí Minh (IBK-HCM)",
@@ -290,6 +290,15 @@ def _fmt_date(d):
     return d
 
 
+def _bank_display(bank_code):
+    row = db.get_bank_by_code(bank_code)
+    if row and row["bank_name"] and row["medium_name"]:
+        return f"{row['bank_name']} ({row['medium_name']})"
+    if row and row["bank_name"]:
+        return row["bank_name"]
+    return NAPAS_BANKS.get(bank_code, bank_code)
+
+
 @app.route("/api/search-customer")
 def search_customer():
     q = request.args.get("q", "").strip()
@@ -341,8 +350,7 @@ def search_customer():
                     "so_tai_khoan": acc.get("accountNo", ""),
                     "chu_tai_khoan": acc.get("accountName", ""),
                     "ma_nh":        acc.get("napasBankCode", ""),
-                    "ngan_hang":    NAPAS_BANKS.get(acc.get("napasBankCode", ""),
-                                        acc.get("napasBankCode", "")),
+                    "ngan_hang":    _bank_display(acc.get("napasBankCode", "")),
                     "ma_ngan_hang": acc.get("napasBankCode", ""),
                     "chi_nhanh":    acc.get("bankBranch", ""),
                 }
@@ -474,7 +482,7 @@ def do_generate():
 # ── Orders (Đặt lệnh) ────────────────────────────────────────────────────────
 
 ORDER_FIELDS = [
-    "Tên khách hàng", "Thông tin CMND/CCCD của KH", "Ngày cấp", "Nơi cấp",
+    "Tên khách hàng", "Giới tính", "Thông tin CMND/CCCD của KH", "Ngày cấp", "Nơi cấp",
     "Địa chỉ liên lạc", "Số điện thoại", "Ngày tháng năm Sinh",
     "Số Hợp đồng vay vốn", "Số HĐ Thế chấp", "Giá trị hợp đồng trái phiếu",
     "Số tiền bằng chữ", "Ngày giao dịch", "Ngày bằng chữ",

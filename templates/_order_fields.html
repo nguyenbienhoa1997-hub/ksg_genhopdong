@@ -1,9 +1,24 @@
 <div class="section">
   <div class="section-title">Thông tin khách hàng</div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
-    <div style="grid-column:1/-1;">
+    <div>
       <label class="form-label">Tên khách hàng</label>
       <input type="text" name="Tên khách hàng" value="{{ data.get('Tên khách hàng','') }}" style="width:100%;">
+    </div>
+    <div>
+      <label class="form-label">Giới tính</label>
+      {% if order %}
+      <select name="Giới tính" id="gt-select" style="width:100%;">
+        <option value="">-- Chọn --</option>
+        {% set gt = data.get('Giới tính','') %}
+        <option value="Nam" {% if gt == 'Nam' %}selected{% endif %}>Nam</option>
+        <option value="Nữ" {% if gt == 'Nữ' %}selected{% endif %}>Nữ</option>
+      </select>
+      {% else %}
+      <input type="text" name="Giới tính" id="gt-select"
+             value="{{ data.get('Giới tính','') }}"
+             style="width:100%;background:var(--sidebar-bg);color:var(--text-2);" readonly>
+      {% endif %}
     </div>
     <div>
       <label class="form-label">Thông tin CMND/CCCD của KH</label>
@@ -161,9 +176,9 @@
     </div>
 
     <!-- Hidden: được fill tự động từ KH lookup và bank select -->
-    <input type="hidden" name="Tài khoản KH "                value="{{ data.get('Tài khoản KH ','') }}">
-    <input type="hidden" name="Tên tài khoản KH"             value="{{ data.get('Tên tài khoản KH','') }}">
-    <input type="hidden" name="Ngân hàng - chi nhánh"        value="{{ data.get('Ngân hàng - chi nhánh','') }}">
+    <input type="hidden" name="Tài khoản KH "                id="h-tk-kh"   value="{{ data.get('Tài khoản KH ','') }}">
+    <input type="hidden" name="Tên tài khoản KH"             id="h-ten-tk"  value="{{ data.get('Tên tài khoản KH','') }}">
+    <input type="hidden" name="Ngân hàng - chi nhánh"        id="h-nh-cn"   value="{{ data.get('Ngân hàng - chi nhánh','') }}">
     <input type="hidden" name="SỐ TKCK"                      value="{{ data.get('SỐ TKCK','') }}">
     <input type="hidden" name="NƠI MỞ TKCK"                  value="{{ data.get('NƠI MỞ TKCK','') }}">
     <input type="hidden" name="Số lượng trái phiếu thế chấp" id="h-sl-tp" value="{{ data.get('Số lượng trái phiếu thế chấp','') }}">

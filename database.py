@@ -446,6 +446,12 @@ def bump_order_seq():
         )
 
 
+def get_bank_by_code(bank_code):
+    with get_db() as conn:
+        return conn.execute(
+            "SELECT * FROM banks WHERE bank_code = ?", (bank_code,)
+        ).fetchone()
+
 def get_banks(search=""):
     where  = "WHERE 1=1"
     params = []

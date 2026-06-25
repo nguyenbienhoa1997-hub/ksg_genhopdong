@@ -176,9 +176,13 @@
     <div class="section">
       <div class="section-title">Thông tin khách hàng</div>
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
-        <div style="grid-column:1/-1;">
+        <div>
           <label class="form-label">Tên khách hàng</label>
           <input type="text" id="c-ten-kh" style="width:100%;" disabled>
+        </div>
+        <div>
+          <label class="form-label">Giới tính</label>
+          <input type="text" id="c-gioi-tinh" style="width:100%;" disabled>
         </div>
         <div>
           <label class="form-label">Thông tin CMND/CCCD của KH</label>
@@ -391,6 +395,7 @@ function goStep2() {
     const kh = selectedKH;
     const mapping = {
       'Tên khách hàng':                kh.ho_ten,
+      'Giới tính':                     kh.gioi_tinh,
       'Thông tin CMND/CCCD của KH':    kh.so_cmnd,
       'Ngày cấp':                      kh.ngay_cap,
       'Nơi cấp':                       kh.noi_cap,
@@ -428,14 +433,10 @@ function onBankSelect(sel) {
   if (!selectedKH || sel.value === '' || sel.value === '__manual__') return;
   const acc = (selectedKH.tai_khoan_ngan_hang || [])[parseInt(sel.value)];
   if (!acc) return;
-  const setVal = (name, val) => {
-    const el = document.querySelector(`[name="${CSS.escape(name)}"]`);
-    if (el) el.value = val || '';
-  };
-  setVal('Tài khoản KH ',    acc.so_tai_khoan);
-  setVal('Tên tài khoản KH', acc.chu_tai_khoan);
   const branch = acc.chi_nhanh ? ` - ${acc.chi_nhanh}` : '';
-  setVal('Ngân hàng - chi nhánh', (acc.ngan_hang || acc.ma_nh || '') + branch);
+  document.getElementById('h-tk-kh').value  = acc.so_tai_khoan || '';
+  document.getElementById('h-ten-tk').value = acc.chu_tai_khoan || '';
+  document.getElementById('h-nh-cn').value  = (acc.ngan_hang || acc.ma_nh || '') + branch;
 }
 
 function skipSearch() {
@@ -634,6 +635,7 @@ async function goStep3() {
 
   // Thông tin khách hàng
   document.getElementById('c-ten-kh').value    = document.querySelector('[name="Tên khách hàng"]')?.value || '';
+  document.getElementById('c-gioi-tinh').value = document.getElementById('gt-select')?.value || '';
   document.getElementById('c-cccd').value      = document.querySelector('[name="Thông tin CMND/CCCD của KH"]')?.value || '';
   document.getElementById('c-ngay-sinh').value = document.querySelector('[name="Ngày tháng năm Sinh"]')?.value || '';
   document.getElementById('c-ngay-cap').value  = document.querySelector('[name="Ngày cấp"]')?.value || '';
