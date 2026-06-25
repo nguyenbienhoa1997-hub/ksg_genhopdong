@@ -8,6 +8,11 @@
   <h1 class="page-title">{{ data.get('Số Hợp đồng vay vốn') or 'Lệnh #' ~ order.id }}</h1>
   <div style="display:flex;gap:8px;align-items:center;">
     <a href="{{ url_for('order_edit', id=order.id) }}" class="btn btn-ghost">✏️ Sửa thông tin</a>
+    {% set rs = order.review_status if order.review_status else 'chua_kiem_tra' %}
+    <button class="btn {% if rs == 'da_kiem_tra' %}btn-ghost{% else %}btn-primary{% endif %}"
+            id="btn-review" onclick="toggleReview()">
+      {% if rs == 'da_kiem_tra' %}✅ Đã kiểm tra{% else %}🔍 Duyệt hợp đồng{% endif %}
+    </button>
     <button class="btn btn-primary" onclick="openGenModal()">🚀 Tạo hợp đồng</button>
   </div>
 </div>
@@ -73,6 +78,16 @@
         </div>
       </div>
       <div>
+        <div class="detail-label">Tình trạng kiểm tra</div>
+        <div class="detail-value" id="review-badge">
+          {% if order.review_status == 'da_kiem_tra' %}
+            <span class="badge badge-green">✅ Đã kiểm tra</span>
+          {% else %}
+            <span class="badge badge-orange">🕐 Chưa kiểm tra</span>
+          {% endif %}
+        </div>
+      </div>
+      <div>
         <div class="detail-label">Ngày tạo</div>
         <div class="detail-value">{{ order.created_at[:16].replace('T',' ') }}</div>
       </div>
@@ -132,6 +147,22 @@
 
 {% block scripts %}
 <script>
+async function toggleReview() {
+  const btn = document.getElementById('btn-review');
+  btn.disabled = true;
+  const r = await fetch('{{ url_for("order_review", id=order.id) }}', { method: 'POST' });
+  const d = await r.json();
+  if (d.ok) {
+    const isDone = d.review_status === 'da_kiem_tra';
+    btn.textContent    = isDone ? '✅ Đã kiểm tra' : '🔍 Duyệt hợp đồng';
+    btn.className      = 'btn ' + (isDone ? 'btn-ghost' : 'btn-primary');
+    document.getElementById('review-badge').innerHTML = isDone
+      ? '<span class="badge badge-green">✅ Đã kiểm tra</span>'
+      : '<span class="badge badge-orange">🕐 Chưa kiểm tra</span>';
+  }
+  btn.disabled = false;
+}
+
 function switchTab(name) {
   ['info', 'contracts'].forEach(t => {
     document.getElementById('tab-' + t).classList.toggle('active', t === name);

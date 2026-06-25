@@ -225,11 +225,15 @@
       <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
         <div>
           <label class="form-label">Số HĐ vay vốn</label>
-          <input type="text" id="c-hdvv" style="width:100%;" disabled>
+          <input type="text" id="c-hdvv" style="width:100%;"
+                 oninput="checkSoHD(this,'hd-hdvv-status')">
+          <div id="hd-hdvv-status" style="font-size:12px;margin-top:4px;min-height:16px;"></div>
         </div>
         <div>
           <label class="form-label">Số HĐ thế chấp</label>
-          <input type="text" id="c-hdtc" style="width:100%;" disabled>
+          <input type="text" id="c-hdtc" style="width:100%;"
+                 oninput="checkSoHD(this,'hd-hdtc-status')">
+          <div id="hd-hdtc-status" style="font-size:12px;margin-top:4px;min-height:16px;"></div>
         </div>
         <div style="grid-column:1/-1;">
           <label class="form-label">Lô Trái Phiếu</label>
@@ -281,6 +285,25 @@
           <label class="form-label">Số tiền thực nhận</label>
           <input type="text" id="c-tien-tn"
                  style="width:100%;font-weight:600;color:var(--accent);" disabled>
+        </div>
+      </div>
+    </div>
+
+    <!-- Nhóm 3: Thông tin gửi hợp đồng -->
+    <div class="section">
+      <div class="section-title">Thông tin gửi hợp đồng</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
+        <div style="grid-column:1/-1;">
+          <label class="form-label">Người nhận hợp đồng</label>
+          <input type="text" id="c-nguoi-nhan" style="width:100%;" disabled>
+        </div>
+        <div>
+          <label class="form-label">SĐT người nhận</label>
+          <input type="text" id="c-sdt-nhan" style="width:100%;" disabled>
+        </div>
+        <div>
+          <label class="form-label">Địa chỉ người nhận</label>
+          <input type="text" id="c-dc-nhan" style="width:100%;" disabled>
         </div>
       </div>
     </div>
@@ -657,8 +680,12 @@ async function goStep3() {
     const seqData = await seqRes.json();
     const seqStr  = String(seqData.seq).padStart(5, '0');
     const maVk    = selectedLot?.ma_vk || '';
-    document.getElementById('c-hdvv').value = `${seqStr}/HDVV-KGALAXY.${maVk}-KSG01`;
-    document.getElementById('c-hdtc').value = `${seqStr}/HDTC-KGALAXY.${maVk}-KSG01`;
+    const hdvvEl = document.getElementById('c-hdvv');
+    const hdtcEl = document.getElementById('c-hdtc');
+    hdvvEl.value = `${seqStr}/HDVV-KGALAXY.${maVk}-KSG01`;
+    hdtcEl.value = `${seqStr}/HDTC-KGALAXY.${maVk}-KSG01`;
+    checkSoHD(hdvvEl, 'hd-hdvv-status');
+    checkSoHD(hdtcEl, 'hd-hdtc-status');
   } catch(e) {
     document.getElementById('c-hdvv').value = '';
     document.getElementById('c-hdtc').value = '';
@@ -681,6 +708,10 @@ async function goStep3() {
   document.getElementById('c-sl-tp').value   = document.getElementById('h-sl-tp').value || '';
   document.getElementById('c-tien-tn').value = document.getElementById('h-tien-tn').value || '';
 
+  document.getElementById('c-nguoi-nhan').value = document.querySelector('[name="Người nhận hợp đồng"]')?.value || '';
+  document.getElementById('c-sdt-nhan').value   = document.querySelector('[name="SĐT người nhận"]')?.value || '';
+  document.getElementById('c-dc-nhan').value     = document.querySelector('[name="Địa chỉ người nhận"]')?.value || '';
+
   document.getElementById('step2').classList.add('hidden');
   document.getElementById('step3').classList.remove('hidden');
 }
@@ -690,7 +721,41 @@ function backStep2() {
   document.getElementById('step2').classList.remove('hidden');
 }
 
+let _hdCheckTimer = {};
+async function checkSoHD(input, statusId) {
+  const val = input.value.trim();
+  const el  = document.getElementById(statusId);
+  clearTimeout(_hdCheckTimer[statusId]);
+  if (!val) { el.innerHTML = ''; return; }
+  el.innerHTML = '<span style="color:var(--text-3);">Đang kiểm tra...</span>';
+  _hdCheckTimer[statusId] = setTimeout(async () => {
+    const r = await fetch(`/orders/check-so-hd?val=${encodeURIComponent(val)}`);
+    const d = await r.json();
+    if (d.exists) {
+      el.innerHTML = `<span style="color:var(--danger);">⚠️ Trùng với lệnh #${d.order_id} — ${d.ten_kh}</span>`;
+      input.style.borderColor = 'var(--danger)';
+    } else {
+      el.innerHTML = '<span style="color:var(--success,#16a34a);">✅ Mã hợp lệ</span>';
+      input.style.borderColor = '';
+    }
+  }, 500);
+}
+
 function submitOrder() {
+  // sync edited values back to hidden inputs
+  const hdvv = document.getElementById('c-hdvv').value.trim();
+  const hdtc = document.getElementById('c-hdtc').value.trim();
+  document.getElementById('h-so-hdvv').value = hdvv;
+  document.getElementById('h-so-hdtc').value = hdtc;
+
+  // block if duplicate warning present
+  const hdvvStatus = document.getElementById('hd-hdvv-status').innerHTML;
+  const hdtcStatus = document.getElementById('hd-hdtc-status').innerHTML;
+  if (hdvvStatus.includes('Trùng') || hdtcStatus.includes('Trùng')) {
+    alert('Mã hợp đồng bị trùng, vui lòng kiểm tra lại trước khi đặt lệnh.');
+    return;
+  }
+
   const btn = document.getElementById('confirm-btn');
   btn.disabled = true;
   btn.textContent = '⏳ Đang xử lý...';

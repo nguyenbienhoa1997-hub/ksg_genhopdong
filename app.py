@@ -4,8 +4,11 @@ import json
 import requests as http_req
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+import io
 from flask import Flask, render_template, request, redirect, url_for, jsonify, send_file, flash
-from openpyxl import load_workbook
+from openpyxl import load_workbook, Workbook
+from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
+from openpyxl.utils import get_column_letter
 
 # ── Config API Core ───────────────────────────────────────────────────────────
 CORE_API_BASE = "https://apicore.sunshinetech.com.vn"
@@ -492,17 +495,21 @@ ORDER_FIELDS = [
     "Mã trái phiếu (theo Văn kiện trái phiếu)",
     "Mã trái phiếu (do VSDC cấp)", "TỔ CHỨC PH", "NGÀY PHÁT HÀNH ",
     "NGÀY ĐÁO HẠN ", "ĐỊA CHỈ EMAIL ", "SỐ TKCK", "NƠI MỞ TKCK", "Phí phong tỏa",
+    "Người nhận hợp đồng", "SĐT người nhận", "Địa chỉ người nhận",
 ]
 
 
 @app.route("/orders")
 def orders_page():
-    search   = request.args.get("q", "")
-    page     = max(1, request.args.get("page", 1, type=int))
-    per_page = request.args.get("per_page", 15, type=int)
+    search    = request.args.get("q", "")
+    date_from = request.args.get("date_from", "")
+    date_to   = request.args.get("date_to", "")
+    page      = max(1, request.args.get("page", 1, type=int))
+    per_page  = request.args.get("per_page", 15, type=int)
     if per_page not in (15, 30, 50, 100): per_page = 15
 
-    items, total = db.get_orders(search=search, page=page, per_page=per_page)
+    items, total = db.get_orders(search=search, page=page, per_page=per_page,
+                                 date_from=date_from, date_to=date_to)
     total_pages  = max(1, (total + per_page - 1) // per_page)
     page         = min(page, total_pages)
     from_row     = (page - 1) * per_page + 1 if total else 0
@@ -513,17 +520,130 @@ def orders_page():
         o = dict(o)
         try: d = json.loads(o.get("data") or "{}")
         except: d = {}
-        o["ten_kh"]  = d.get("Tên khách hàng", "")
-        o["cccd"]    = d.get("Thông tin CMND/CCCD của KH", "")
-        o["so_hd"]   = d.get("Số Hợp đồng vay vốn", "")
-        o["so_hdtc"] = d.get("Số HĐ Thế chấp", "")
-        o["ngay_gd"] = d.get("Ngày giao dịch", "")
-        o["ky_han"]  = d.get("Kỳ hạn theo tháng", "")
+        o["ten_kh"]        = d.get("Tên khách hàng", "")
+        o["cccd"]          = d.get("Thông tin CMND/CCCD của KH", "")
+        o["so_hd"]         = d.get("Số Hợp đồng vay vốn", "")
+        o["so_hdtc"]       = d.get("Số HĐ Thế chấp", "")
+        o["ngay_gd"]       = d.get("Ngày giao dịch", "")
+        o["ky_han"]        = d.get("Kỳ hạn theo tháng", "")
+        o["nguoi_nhan"]    = d.get("Người nhận hợp đồng", "")
+        o["review_status"] = o.get("review_status") or "chua_kiem_tra"
         orders_list.append(o)
 
     return render_template("orders.html", orders=orders_list, search=search,
+                           date_from=date_from, date_to=date_to,
                            page=page, per_page=per_page, total=total,
                            total_pages=total_pages, from_row=from_row, to_row=to_row)
+
+
+@app.route("/orders/check-so-hd")
+def orders_check_so_hd():
+    val = request.args.get("val", "").strip()
+    if not val:
+        return jsonify({"exists": False})
+    row = db.find_order_by_so_hd(val)
+    if row:
+        try: d = json.loads(row["data"] or "{}")
+        except: d = {}
+        return jsonify({"exists": True, "order_id": row["id"],
+                        "ten_kh": d.get("Tên khách hàng", "")})
+    return jsonify({"exists": False})
+
+
+@app.route("/orders/export")
+def orders_export():
+    search    = request.args.get("q", "")
+    date_from = request.args.get("date_from", "")
+    date_to   = request.args.get("date_to", "")
+    all_items, _ = db.get_orders(search=search, page=1, per_page=99999,
+                                 date_from=date_from, date_to=date_to)
+
+    rows = []
+    for o in all_items:
+        o = dict(o)
+        try: d = json.loads(o.get("data") or "{}")
+        except: d = {}
+        rows.append({
+            "ten_kh":       d.get("Tên khách hàng", ""),
+            "gioi_tinh":    d.get("Giới tính", ""),
+            "cccd":         d.get("Thông tin CMND/CCCD của KH", ""),
+            "so_hd":        d.get("Số Hợp đồng vay vốn", ""),
+            "so_hdtc":      d.get("Số HĐ Thế chấp", ""),
+            "ngay_gd":      d.get("Ngày giao dịch", ""),
+            "ky_han":       d.get("Kỳ hạn theo tháng", ""),
+            "so_tien":      d.get("Giá trị hợp đồng trái phiếu", ""),
+            "nguoi_nhan":   d.get("Người nhận hợp đồng", ""),
+            "sdt_nhan":     d.get("SĐT người nhận", ""),
+            "dc_nhan":      d.get("Địa chỉ người nhận", ""),
+            "review":       "Đã KT" if o.get("review_status") == "da_kiem_tra" else "Chưa KT",
+            "status":       "Đã gen HĐ" if o.get("status") == "generated" else "Nháp",
+            "created_at":   (o.get("created_at") or "")[:16].replace("T", " "),
+        })
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Danh sách lệnh"
+
+    HEADERS = [
+        "STT", "Tên khách hàng", "Giới tính", "CCCD/CMND",
+        "Số HĐ vay vốn", "Số HĐ Thế chấp", "Ngày giao dịch", "Kỳ hạn (tháng)",
+        "Giá trị HĐ", "Người nhận HĐ", "SĐT người nhận", "Địa chỉ người nhận",
+        "Tình trạng KT", "Trạng thái", "Ngày tạo",
+    ]
+    COL_WIDTHS = [6, 28, 10, 18, 26, 22, 14, 12, 18, 22, 16, 30, 12, 14, 18]
+
+    # title row
+    ws.merge_cells(f"A1:{get_column_letter(len(HEADERS))}1")
+    title_cell = ws["A1"]
+    title_cell.value = "DANH SÁCH ĐẶT LỆNH"
+    title_cell.font      = Font(bold=True, size=13)
+    title_cell.alignment = Alignment(horizontal="center", vertical="center")
+    ws.row_dimensions[1].height = 28
+
+    # header row
+    hdr_fill   = PatternFill("solid", fgColor="1E3A5F")
+    hdr_font   = Font(bold=True, color="FFFFFF", size=10)
+    hdr_align  = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    thin_side  = Side(style="thin", color="CCCCCC")
+    thin_border = Border(left=thin_side, right=thin_side, top=thin_side, bottom=thin_side)
+
+    for ci, h in enumerate(HEADERS, 1):
+        cell = ws.cell(row=2, column=ci, value=h)
+        cell.font      = hdr_font
+        cell.fill      = hdr_fill
+        cell.alignment = hdr_align
+        cell.border    = thin_border
+        ws.column_dimensions[get_column_letter(ci)].width = COL_WIDTHS[ci - 1]
+    ws.row_dimensions[2].height = 22
+
+    # data rows
+    even_fill = PatternFill("solid", fgColor="F5F8FF")
+    data_align = Alignment(vertical="center", wrap_text=False)
+
+    for ri, r in enumerate(rows, 1):
+        row_data = [
+            ri, r["ten_kh"], r["gioi_tinh"], r["cccd"],
+            r["so_hd"], r["so_hdtc"], r["ngay_gd"], r["ky_han"],
+            r["so_tien"], r["nguoi_nhan"], r["sdt_nhan"], r["dc_nhan"],
+            r["review"], r["status"], r["created_at"],
+        ]
+        fill = even_fill if ri % 2 == 0 else None
+        for ci, val in enumerate(row_data, 1):
+            cell = ws.cell(row=ri + 2, column=ci, value=val)
+            cell.alignment = data_align
+            cell.border    = thin_border
+            if fill:
+                cell.fill = fill
+
+    ws.freeze_panes = "A3"
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    from datetime import datetime
+    fname = f"danh_sach_lenh_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
+    return send_file(buf, as_attachment=True, download_name=fname,
+                     mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 
 @app.route("/orders/new", methods=["GET", "POST"])
@@ -540,6 +660,17 @@ def order_new():
         flash("Đã thêm lệnh mới", "success")
         return redirect(url_for("order_detail", id=oid))
     return render_template("order_form.html", order=None, fields=ORDER_FIELDS, data={})
+
+
+@app.route("/orders/<int:id>/review", methods=["POST"])
+def order_review(id):
+    order = db.get_order(id)
+    if not order:
+        return jsonify({"error": "Không tìm thấy"}), 404
+    current = order["review_status"] if "review_status" in order.keys() else "chua_kiem_tra"
+    new_status = "da_kiem_tra" if current != "da_kiem_tra" else "chua_kiem_tra"
+    db.update_order_review(id, new_status)
+    return jsonify({"ok": True, "review_status": new_status})
 
 
 @app.route("/orders/<int:id>")

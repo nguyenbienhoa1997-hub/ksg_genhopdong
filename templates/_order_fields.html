@@ -134,8 +134,8 @@
     <input type="hidden" name="Số ngày cho vay"      id="h-songay" value="{{ data.get('Số ngày cho vay','') }}">
     <input type="hidden" name="Số tiền bằng chữ"    id="h-stbc"   value="{{ data.get('Số tiền bằng chữ','') }}">
     <input type="hidden" name="Số tiền thực nhận"   id="h-tien-tn" value="{{ data.get('Số tiền thực nhận','') }}">
-    <input type="hidden" name="Số Hợp đồng vay vốn"               value="{{ data.get('Số Hợp đồng vay vốn','') }}">
-    <input type="hidden" name="Số HĐ Thế chấp"                    value="{{ data.get('Số HĐ Thế chấp','') }}">
+    <input type="hidden" name="Số Hợp đồng vay vốn" id="h-so-hdvv" value="{{ data.get('Số Hợp đồng vay vốn','') }}">
+    <input type="hidden" name="Số HĐ Thế chấp"     id="h-so-hdtc" value="{{ data.get('Số HĐ Thế chấp','') }}">
   </div>
 </div>
 
@@ -183,5 +183,31 @@
     <input type="hidden" name="NƠI MỞ TKCK"                  value="{{ data.get('NƠI MỞ TKCK','') }}">
     <input type="hidden" name="Số lượng trái phiếu thế chấp" id="h-sl-tp" value="{{ data.get('Số lượng trái phiếu thế chấp','') }}">
     <input type="hidden" name="Phí phong tỏa"                value="{{ data.get('Phí phong tỏa','') }}">
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<div class="section">
+  <div class="section-title">Thông tin gửi hợp đồng</div>
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
+    <div style="grid-column:1/-1;">
+      <label class="form-label">Người nhận hợp đồng</label>
+      <input type="text" name="Người nhận hợp đồng"
+             value="{{ data.get('Người nhận hợp đồng','') }}" style="width:100%;"
+             placeholder="Nhập tên người nhận...">
+    </div>
+    <div>
+      <label class="form-label">SĐT người nhận</label>
+      <input type="text" name="SĐT người nhận"
+             value="{{ data.get('SĐT người nhận','') }}" style="width:100%;"
+             placeholder="Nhập số điện thoại...">
+    </div>
+    <div>
+      <label class="form-label">Địa chỉ người nhận</label>
+      <input type="text" name="Địa chỉ người nhận"
+             value="{{ data.get('Địa chỉ người nhận','') }}" style="width:100%;"
+             placeholder="Nhập địa chỉ...">
+    </div>
   </div>
 </div>

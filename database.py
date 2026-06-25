@@ -1,5 +1,9 @@
 import sqlite3
 import os
+from datetime import datetime
+
+def _now():
+    return datetime.now().strftime('%Y-%m-%d %H:%M:%S')
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "data", "contracts.db")
 
@@ -108,6 +112,10 @@ def init_db():
             conn.execute("ALTER TABLE contracts ADD COLUMN order_id INTEGER")
         except Exception:
             pass
+        try:
+            conn.execute("ALTER TABLE orders ADD COLUMN review_status TEXT DEFAULT 'chua_kiem_tra'")
+        except Exception:
+            pass
         # Khởi tạo sequence counter nếu chưa có
         conn.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('next_order_seq', '10000')")
 
@@ -138,8 +146,8 @@ def get_template_by_code(code):
 def add_template(name, code, filename, file_path):
     with get_db() as conn:
         conn.execute(
-            "INSERT INTO templates (name, code, filename, file_path) VALUES (?,?,?,?)",
-            (name, code, filename, file_path)
+            "INSERT INTO templates (name, code, filename, file_path, created_at) VALUES (?,?,?,?,?)",
+            (name, code, filename, file_path, _now())
         )
 
 
@@ -203,9 +211,9 @@ def add_contract(name, template_id, template_name, template_code, pdf_path, row_
     with get_db() as conn:
         conn.execute(
             """INSERT INTO contracts
-               (name, template_id, template_name, template_code, pdf_path, row_data, batch_id, order_id)
-               VALUES (?,?,?,?,?,?,?,?)""",
-            (name, template_id, template_name, template_code, pdf_path, row_data, batch_id, order_id)
+               (name, template_id, template_name, template_code, pdf_path, row_data, batch_id, order_id, created_at)
+               VALUES (?,?,?,?,?,?,?,?,?)""",
+            (name, template_id, template_name, template_code, pdf_path, row_data, batch_id, order_id, _now())
         )
 
 
@@ -248,12 +256,24 @@ def delete_contract(id):
 
 # ── Orders ──
 
-def get_orders(search="", page=1, per_page=15):
+def get_orders(search="", page=1, per_page=15, date_from="", date_to=""):
     where = "WHERE 1=1"
     params = []
     if search:
         where += " AND data LIKE ?"
         params.append(f"%{search}%")
+    # Ngày giao dịch stored as DD/MM/YYYY → convert to YYYY-MM-DD for comparison
+    _ngay = (
+        "substr(json_extract(data,'$.Ngày giao dịch'),7,4)||'-'||"
+        "substr(json_extract(data,'$.Ngày giao dịch'),4,2)||'-'||"
+        "substr(json_extract(data,'$.Ngày giao dịch'),1,2)"
+    )
+    if date_from:
+        where += f" AND {_ngay} >= ?"
+        params.append(date_from)
+    if date_to:
+        where += f" AND {_ngay} <= ?"
+        params.append(date_to)
     offset = (page - 1) * per_page
     with get_db() as conn:
         total = conn.execute(f"SELECT COUNT(*) FROM orders {where}", params).fetchone()[0]
@@ -269,9 +289,18 @@ def get_order(id):
         return conn.execute("SELECT * FROM orders WHERE id = ?", (id,)).fetchone()
 
 
+def find_order_by_so_hd(val):
+    """Tìm lệnh có Số HĐ vay vốn hoặc Số HĐ Thế chấp khớp với val."""
+    like = f"%{val}%"
+    with get_db() as conn:
+        return conn.execute(
+            "SELECT * FROM orders WHERE data LIKE ? LIMIT 1", (like,)
+        ).fetchone()
+
+
 def add_order(data_json):
     with get_db() as conn:
-        cur = conn.execute("INSERT INTO orders (data) VALUES (?)", (data_json,))
+        cur = conn.execute("INSERT INTO orders (data, created_at) VALUES (?,?)", (data_json, _now()))
         return cur.lastrowid
 
 
@@ -281,6 +310,11 @@ def update_order(id, data_json, status=None):
             conn.execute("UPDATE orders SET data=?, status=? WHERE id=?", (data_json, status, id))
         else:
             conn.execute("UPDATE orders SET data=? WHERE id=?", (data_json, id))
+
+
+def update_order_review(id, review_status):
+    with get_db() as conn:
+        conn.execute("UPDATE orders SET review_status=? WHERE id=?", (review_status, id))
 
 
 def delete_order(id):

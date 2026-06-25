@@ -289,8 +289,9 @@ input[type=text]:focus, select:focus, input[type=search]:focus {
 /* ── Badge ── */
 .badge      { display: inline-block; padding: 2px 8px; border-radius: 4px; font-size: 12px; font-weight: 500; }
 .badge-blue { background: var(--accent-lt); color: var(--accent); }
-.badge-green{ background: var(--success-lt); color: var(--success); }
-.badge-gray { background: var(--active-bg); color: var(--text-2); }
+.badge-green { background: var(--success-lt); color: var(--success); }
+.badge-gray  { background: var(--active-bg); color: var(--text-2); }
+.badge-orange{ background: #fff3e0; color: #e65100; }
 
 /* ── Toast ── */
 .toast-container { position: fixed; top: 20px; right: 20px; z-index: 999; display: flex; flex-direction: column; gap: 8px; }

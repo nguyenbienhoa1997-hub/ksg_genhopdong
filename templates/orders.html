@@ -7,24 +7,34 @@
   <div style="display:flex;gap:8px;align-items:center;">
     <button id="btn-bulk-delete" class="btn btn-danger" style="display:none;"
             onclick="bulkDelete()">🗑 Xóa (<span id="sel-count">0</span>)</button>
+    <a href="{{ url_for('orders_export', q=search, date_from=date_from, date_to=date_to) }}" class="btn btn-ghost">⬇ Export Excel</a>
     <a href="{{ url_for('order_new') }}" class="btn btn-primary">➕ Thêm mới</a>
   </div>
 </div>
 
 <div class="toolbar">
-  <form method="GET" action="{{ url_for('orders_page') }}" style="display:flex;gap:12px;flex:1;">
+  <form method="GET" action="{{ url_for('orders_page') }}" style="display:flex;gap:12px;flex-wrap:wrap;align-items:center;flex:1;">
     <input type="search" name="q" value="{{ search }}"
            placeholder="🔍  Tìm theo tên KH, số HĐ, CCCD..."
-           style="flex:1;" onchange="this.form.submit()">
-    {% if search %}
+           style="flex:1;min-width:200px;">
+    <div style="display:flex;align-items:center;gap:6px;font-size:13px;color:var(--text-2);">
+      <span>Ngày GD:</span>
+      <input type="date" name="date_from" value="{{ date_from }}"
+             style="padding:6px 8px;font-size:13px;border:1px solid var(--border);border-radius:6px;cursor:pointer;">
+      <span>—</span>
+      <input type="date" name="date_to" value="{{ date_to }}"
+             style="padding:6px 8px;font-size:13px;border:1px solid var(--border);border-radius:6px;cursor:pointer;">
+    </div>
+    <button type="submit" class="btn btn-ghost btn-sm">Lọc</button>
+    {% if search or date_from or date_to %}
     <a href="{{ url_for('orders_page') }}" class="btn btn-ghost btn-sm">✕ Xóa bộ lọc</a>
     {% endif %}
   </form>
 </div>
 
 {% if orders %}
-<div class="table-wrap" style="overflow:visible;">
-  <table style="min-width:900px;">
+<div class="table-wrap" style="overflow-x:auto;">
+  <table style="min-width:1100px;">
     <thead>
       <tr>
         <th style="width:40px;text-align:center;">
@@ -33,11 +43,13 @@
         <th style="min-width:180px;">Tên khách hàng</th>
         <th style="min-width:190px;">Số HĐ vay vốn</th>
         <th style="min-width:130px;">CCCD/CMND</th>
+        <th style="min-width:150px;">Người nhận HĐ</th>
         <th style="min-width:110px;">Ngày GD</th>
         <th style="min-width:70px;">Kỳ hạn</th>
+        <th style="min-width:120px;">Tình trạng KT</th>
         <th style="min-width:90px;">Trạng thái</th>
         <th style="min-width:110px;">Ngày tạo</th>
-        <th style="min-width:100px;">Thao tác</th>
+        <th style="min-width:100px;position:sticky;right:0;background:var(--card-bg);z-index:2;box-shadow:-2px 0 4px rgba(0,0,0,.06);">Thao tác</th>
       </tr>
     </thead>
     <tbody>
@@ -49,8 +61,16 @@
         <td><strong>{{ o.ten_kh or '—' }}</strong></td>
         <td class="text-secondary" style="font-size:12px;font-family:monospace;">{{ o.so_hd or '—' }}</td>
         <td class="text-secondary" style="font-size:12px;">{{ o.cccd or '—' }}</td>
+        <td class="text-secondary" style="font-size:13px;">{{ o.nguoi_nhan or '—' }}</td>
         <td class="text-secondary" style="font-size:12px;">{{ o.ngay_gd or '—' }}</td>
         <td class="text-secondary" style="text-align:center;">{{ o.ky_han or '—' }}</td>
+        <td>
+          {% if o.review_status == 'da_kiem_tra' %}
+            <span class="badge badge-green">✅ Đã KT</span>
+          {% else %}
+            <span class="badge badge-orange">🕐 Chưa KT</span>
+          {% endif %}
+        </td>
         <td>
           {% if o.status == 'generated' %}
             <span class="badge badge-green">Đã gen HĐ</span>
@@ -59,7 +79,7 @@
           {% endif %}
         </td>
         <td class="text-secondary" style="font-size:12px;">{{ o.created_at[:16].replace('T',' ') }}</td>
-        <td onclick="event.stopPropagation()" style="text-align:right;">
+        <td onclick="event.stopPropagation()" style="text-align:right;position:sticky;right:0;background:var(--card-bg);z-index:1;box-shadow:-2px 0 4px rgba(0,0,0,.06);">
           <div class="split-btn">
             <a href="{{ url_for('order_detail', id=o.id) }}" class="split-btn-main">Xem</a>
             <button class="split-btn-arrow" onclick="toggleDropdown(this)">▾</button>

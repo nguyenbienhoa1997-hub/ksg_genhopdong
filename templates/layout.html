@@ -21,19 +21,10 @@
      class="nav-item {% if request.endpoint == 'contracts' %}active{% endif %}">
     <span class="nav-icon">📋</span> Danh sách
   </a>
-  <a href="{{ url_for('generate_page') }}"
-     class="nav-item {% if request.endpoint == 'generate_page' %}active{% endif %}">
-    <span class="nav-icon">➕</span> Tạo mới
-  </a>
-
   <div class="sidebar-section" style="margin-top:16px;">Đặt lệnh</div>
   <a href="{{ url_for('orders_page') }}"
      class="nav-item {% if request.endpoint in ('orders_page','order_detail','order_new') %}active{% endif %}">
     <span class="nav-icon">📑</span> Danh sách lệnh
-  </a>
-  <a href="{{ url_for('order_new') }}"
-     class="nav-item {% if request.endpoint == 'order_new' %}active{% endif %}">
-    <span class="nav-icon">➕</span> Thêm lệnh mới
   </a>
 
   <div class="sidebar-section" style="margin-top:16px;">Cài đặt</div>
