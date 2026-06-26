@@ -9,9 +9,12 @@ DB_PATH = os.path.join(os.path.dirname(__file__), "data", "contracts.db")
 
 
 def get_db():
-    conn = sqlite3.connect(DB_PATH)
+    conn = sqlite3.connect(DB_PATH, timeout=15)
     conn.row_factory = sqlite3.Row
-    conn.execute("PRAGMA journal_mode=WAL")  # better concurrency for 5 users
+    conn.execute("PRAGMA journal_mode=WAL")
+    conn.execute("PRAGMA busy_timeout=10000")   # chờ tối đa 10s thay vì báo lỗi ngay
+    conn.execute("PRAGMA synchronous=NORMAL")   # nhanh hơn FULL, vẫn an toàn với WAL
+    conn.execute("PRAGMA cache_size=-8000")     # 8MB cache per connection
     return conn
 
 

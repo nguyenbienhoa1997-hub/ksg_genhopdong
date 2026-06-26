@@ -339,7 +339,7 @@ def search_customer():
             "ngay_cap":         _fmt_date(d.get("idCardIssuedDate")),
             "ngay_het_han":     _fmt_date(d.get("idCardExpiredDate")),
             "noi_cap":          d.get("idCardIssuedBy", ""),
-            "dia_chi":          d.get("permanentAddress", ""),
+            "dia_chi":          d.get("fullAddress", ""),
             "ma_tk_ck":         "",
             "noi_cap_tk_ck":    "",
             "ngay_het_han_ck":  "",
