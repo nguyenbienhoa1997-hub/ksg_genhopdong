@@ -653,8 +653,10 @@ def order_new():
         seq   = db.get_next_order_seq()
         seq_s = str(seq).zfill(5)
         ma_vk = data.get("Mã trái phiếu (theo Văn kiện trái phiếu)", "")
-        data["Số Hợp đồng vay vốn"] = f"{seq_s}/HDVV-KGALAXY.{ma_vk}-KSG01"
-        data["Số HĐ Thế chấp"]     = f"{seq_s}/HDTC-KGALAXY.{ma_vk}-KSG01"
+        if not data.get("Số Hợp đồng vay vốn", "").strip():
+            data["Số Hợp đồng vay vốn"] = f"{seq_s}/HDVV-KGALAXY.{ma_vk}-KSG01"
+        if not data.get("Số HĐ Thế chấp", "").strip():
+            data["Số HĐ Thế chấp"] = f"{seq_s}/HDTC-KGALAXY.{ma_vk}-KSG01"
         oid = db.add_order(json.dumps(data, ensure_ascii=False))
         db.bump_order_seq()
         flash("Đã thêm lệnh mới", "success")
