@@ -89,7 +89,7 @@
           {% for t in tenors %}
           <tr id="tenor-row-{{ t.id }}">
             <td><strong>{{ t.ky_han }} tháng</strong></td>
-            <td>{{ t.loi_tuc | round(2) }}%</td>
+            <td>{{ "%.2f" | format(t.loi_tuc) | replace('.', ',') }}%</td>
             <td class="text-secondary">{{ t.created_at[:10] }}</td>
             <td style="text-align:center;">
               {% if policy.status == 'closed' %}
@@ -161,8 +161,8 @@
       <div>
         <label class="form-label">Lợi tức (%/năm)</label>
         <div style="position:relative;">
-          <input type="number" id="t-loi_tuc" style="width:100%;padding-right:32px;"
-                 placeholder="VD: 8.5" min="0" step="0.01">
+          <input type="text" id="t-loi_tuc" style="width:100%;padding-right:32px;"
+                 placeholder="VD: 8,5">
           <span style="position:absolute;right:12px;top:50%;transform:translateY(-50%);
                        color:var(--text-3);font-size:14px;">%</span>
         </div>
@@ -296,7 +296,7 @@ function openEditTenor(id, ky_han, loi_tuc) {
   document.getElementById('tenor-modal-title').textContent = '✏️ Sửa kỳ hạn';
   document.getElementById('tenor-save-btn').textContent = '💾 Cập nhật';
   document.getElementById('t-ky_han').value  = ky_han;
-  document.getElementById('t-loi_tuc').value = loi_tuc;
+  document.getElementById('t-loi_tuc').value = String(loi_tuc).replace('.', ',');
   document.getElementById('tenor-error').style.display = 'none';
   document.getElementById('t-ky_han').disabled  = false;
   document.getElementById('t-loi_tuc').disabled = false;
@@ -319,10 +319,10 @@ async function saveTenor() {
   let url, body;
   if (editingTenorId) {
     url  = `/settings/policies/{{ policy.id }}/tenors/${editingTenorId}/edit`;
-    body = {ky_han: parseInt(ky_han), loi_tuc: parseFloat(loi_tuc) || 0};
+    body = {ky_han: parseInt(ky_han), loi_tuc: parseFloat(loi_tuc.replace(',', '.')) || 0};
   } else {
     url  = '/settings/policies/{{ policy.id }}/tenors';
-    body = {ky_han: parseInt(ky_han), loi_tuc: parseFloat(loi_tuc) || 0};
+    body = {ky_han: parseInt(ky_han), loi_tuc: parseFloat(loi_tuc.replace(',', '.')) || 0};
   }
 
   const r = await fetch(url, {
@@ -342,7 +342,7 @@ async function saveTenor() {
     const row = document.getElementById('tenor-row-' + editingTenorId);
     if (row) {
       row.cells[0].innerHTML = `<strong>${parseInt(ky_han)} tháng</strong>`;
-      row.cells[1].textContent = (parseFloat(loi_tuc)||0).toFixed(2) + '%';
+      row.cells[1].textContent = (parseFloat(loi_tuc.replace(',','.'))||0).toFixed(2).replace('.', ',') + '%';
       // Cập nhật onclick của các nút
       row.querySelector('.split-btn-main').setAttribute('onclick',
         `openViewTenor(${editingTenorId}, ${parseInt(ky_han)}, ${parseFloat(loi_tuc)||0})`);
@@ -358,7 +358,7 @@ async function saveTenor() {
     document.getElementById('tenor-tbody').insertAdjacentHTML('beforeend', `
       <tr id="tenor-row-${t.id}">
         <td><strong>${t.ky_han} tháng</strong></td>
-        <td>${parseFloat(t.loi_tuc).toFixed(2)}%</td>
+        <td>${parseFloat(t.loi_tuc).toFixed(2).replace('.', ',')}%</td>
         <td class="text-secondary">${created}</td>
         <td style="text-align:center;">
           <div class="split-btn">

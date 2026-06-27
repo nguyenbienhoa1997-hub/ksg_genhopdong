@@ -558,53 +558,40 @@ def orders_export():
     all_items, _ = db.get_orders(search=search, page=1, per_page=99999,
                                  date_from=date_from, date_to=date_to)
 
+    # Toàn bộ field chi tiết theo ORDER_FIELDS + trạng thái hệ thống
+    HEADERS = ["STT"] + [f.strip() for f in ORDER_FIELDS] + ["Tình trạng KT", "Trạng thái", "Ngày tạo"]
+    COL_WIDTHS = [5] + [max(12, min(30, len(f.strip()) + 4)) for f in ORDER_FIELDS] + [12, 12, 18]
+
     rows = []
     for o in all_items:
         o = dict(o)
         try: d = json.loads(o.get("data") or "{}")
         except: d = {}
-        rows.append({
-            "ten_kh":       d.get("Tên khách hàng", ""),
-            "gioi_tinh":    d.get("Giới tính", ""),
-            "cccd":         d.get("Thông tin CMND/CCCD của KH", ""),
-            "so_hd":        d.get("Số Hợp đồng vay vốn", ""),
-            "so_hdtc":      d.get("Số HĐ Thế chấp", ""),
-            "ngay_gd":      d.get("Ngày giao dịch", ""),
-            "ky_han":       d.get("Kỳ hạn theo tháng", ""),
-            "so_tien":      d.get("Giá trị hợp đồng trái phiếu", ""),
-            "nguoi_nhan":   d.get("Người nhận hợp đồng", ""),
-            "sdt_nhan":     d.get("SĐT người nhận", ""),
-            "dc_nhan":      d.get("Địa chỉ người nhận", ""),
-            "review":       "Đã KT" if o.get("review_status") == "da_kiem_tra" else "Chưa KT",
-            "status":       "Đã gen HĐ" if o.get("status") == "generated" else "Nháp",
-            "created_at":   (o.get("created_at") or "")[:16].replace("T", " "),
-        })
+        row = [None]  # STT placeholder
+        for f in ORDER_FIELDS:
+            row.append(d.get(f, ""))
+        row.append("Đã KT" if o.get("review_status") == "da_kiem_tra" else "Chưa KT")
+        row.append("Đã gen HĐ" if o.get("status") == "generated" else "Nháp")
+        row.append((o.get("created_at") or "")[:16].replace("T", " "))
+        rows.append(row)
 
     wb = Workbook()
     ws = wb.active
     ws.title = "Danh sách lệnh"
 
-    HEADERS = [
-        "STT", "Tên khách hàng", "Giới tính", "CCCD/CMND",
-        "Số HĐ vay vốn", "Số HĐ Thế chấp", "Ngày giao dịch", "Kỳ hạn (tháng)",
-        "Giá trị HĐ", "Người nhận HĐ", "SĐT người nhận", "Địa chỉ người nhận",
-        "Tình trạng KT", "Trạng thái", "Ngày tạo",
-    ]
-    COL_WIDTHS = [6, 28, 10, 18, 26, 22, 14, 12, 18, 22, 16, 30, 12, 14, 18]
-
     # title row
     ws.merge_cells(f"A1:{get_column_letter(len(HEADERS))}1")
     title_cell = ws["A1"]
-    title_cell.value = "DANH SÁCH ĐẶT LỆNH"
+    title_cell.value = "DANH SÁCH ĐẶT LỆNH - CHI TIẾT"
     title_cell.font      = Font(bold=True, size=13)
     title_cell.alignment = Alignment(horizontal="center", vertical="center")
     ws.row_dimensions[1].height = 28
 
     # header row
-    hdr_fill   = PatternFill("solid", fgColor="1E3A5F")
-    hdr_font   = Font(bold=True, color="FFFFFF", size=10)
-    hdr_align  = Alignment(horizontal="center", vertical="center", wrap_text=True)
-    thin_side  = Side(style="thin", color="CCCCCC")
+    hdr_fill    = PatternFill("solid", fgColor="1E3A5F")
+    hdr_font    = Font(bold=True, color="FFFFFF", size=10)
+    hdr_align   = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    thin_side   = Side(style="thin", color="CCCCCC")
     thin_border = Border(left=thin_side, right=thin_side, top=thin_side, bottom=thin_side)
 
     for ci, h in enumerate(HEADERS, 1):
@@ -614,21 +601,16 @@ def orders_export():
         cell.alignment = hdr_align
         cell.border    = thin_border
         ws.column_dimensions[get_column_letter(ci)].width = COL_WIDTHS[ci - 1]
-    ws.row_dimensions[2].height = 22
+    ws.row_dimensions[2].height = 30
 
     # data rows
-    even_fill = PatternFill("solid", fgColor="F5F8FF")
+    even_fill  = PatternFill("solid", fgColor="F5F8FF")
     data_align = Alignment(vertical="center", wrap_text=False)
 
-    for ri, r in enumerate(rows, 1):
-        row_data = [
-            ri, r["ten_kh"], r["gioi_tinh"], r["cccd"],
-            r["so_hd"], r["so_hdtc"], r["ngay_gd"], r["ky_han"],
-            r["so_tien"], r["nguoi_nhan"], r["sdt_nhan"], r["dc_nhan"],
-            r["review"], r["status"], r["created_at"],
-        ]
+    for ri, row in enumerate(rows, 1):
+        row[0] = ri  # STT
         fill = even_fill if ri % 2 == 0 else None
-        for ci, val in enumerate(row_data, 1):
+        for ci, val in enumerate(row, 1):
             cell = ws.cell(row=ri + 2, column=ci, value=val)
             cell.alignment = data_align
             cell.border    = thin_border

@@ -585,7 +585,7 @@ async function onPolicyChange(pid) {
 function onTenorChange(sel) {
   const tenor = currentTenors.find(t => t.id === parseInt(sel.value));
   if (!tenor) { document.getElementById('ls-field').value = ''; return; }
-  document.getElementById('ls-field').value = tenor.loi_tuc;
+  document.getElementById('ls-field').value = String(tenor.loi_tuc).replace('.', ',');
   document.getElementById('h-kyhan').value  = tenor.ky_han;
   const ndt = document.getElementById('ndt-field').value;
   if (ndt) onInvestDate(ndt);
@@ -626,7 +626,7 @@ function onInvestDate(val) {
 function recalcAll() {
   const rawAmount = (document.getElementById('st-field')?.value || '').replace(/[.,\s]/g, '');
   const amount    = parseInt(rawAmount) || 0;
-  const laiSuat   = parseFloat(document.getElementById('ls-field')?.value) || 0;
+  const laiSuat   = parseFloat((document.getElementById('ls-field')?.value || '').replace(',', '.')) || 0;
   const songay    = parseInt(document.getElementById('h-songay')?.value)   || 0;
 
   if (amount > 0 && selectedPct > 0) {
