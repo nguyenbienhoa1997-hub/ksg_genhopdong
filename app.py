@@ -631,16 +631,49 @@ def orders_export():
 @app.route("/orders/new", methods=["GET", "POST"])
 def order_new():
     if request.method == "POST":
+        is_ajax = request.headers.get("X-Requested-With") == "XMLHttpRequest"
         data  = {f: request.form.get(f, "") for f in ORDER_FIELDS}
-        seq   = db.get_next_order_seq()
-        seq_s = str(seq).zfill(5)
         ma_vk = data.get("Mã trái phiếu (theo Văn kiện trái phiếu)", "")
-        if not data.get("Số Hợp đồng vay vốn", "").strip():
-            data["Số Hợp đồng vay vốn"] = f"{seq_s}/HDVV-KGALAXY.{ma_vk}-KSG01"
-        if not data.get("Số HĐ Thế chấp", "").strip():
-            data["Số HĐ Thế chấp"] = f"{seq_s}/HDTC-KGALAXY.{ma_vk}-KSG01"
+        hdvv_empty = not data.get("Số Hợp đồng vay vốn", "").strip()
+        hdtc_empty = not data.get("Số HĐ Thế chấp", "").strip()
+        submitted_seq = None
+        if hdvv_empty or hdtc_empty:
+            # Cần sinh số mới → bump ngay để giữ atomic
+            seq   = db.get_and_bump_order_seq()
+            seq_s = str(seq).zfill(5)
+            if hdvv_empty:
+                data["Số Hợp đồng vay vốn"] = f"{seq_s}/HDVV-KGALAXY.{ma_vk}-KSG01"
+            if hdtc_empty:
+                data["Số HĐ Thế chấp"] = f"{seq_s}/HDTC-KGALAXY.{ma_vk}-KSG01"
+        else:
+            # Cả 2 đã có (pre-filled từ step 3) → parse seq để advance sau khi save thành công
+            try:
+                submitted_seq = int(data["Số Hợp đồng vay vốn"].split("/")[0])
+            except (ValueError, IndexError, AttributeError):
+                pass
+
+        # Check trùng mã HĐ lần cuối trước khi lưu
+        hdvv_val = data.get("Số Hợp đồng vay vốn", "")
+        hdtc_val = data.get("Số HĐ Thế chấp", "")
+        hdvv_dup, hdtc_dup = db.check_duplicate_so_hd(hdvv_val, hdtc_val)
+        if hdvv_dup or hdtc_dup:
+            msgs = []
+            if hdvv_dup:
+                msgs.append(f"Mã HĐVV đã tồn tại ở lệnh #{hdvv_dup['order_id']} ({hdvv_dup['ten_kh']})")
+            if hdtc_dup:
+                msgs.append(f"Mã HĐTC đã tồn tại ở lệnh #{hdtc_dup['order_id']} ({hdtc_dup['ten_kh']})")
+            msg = " | ".join(msgs)
+            if is_ajax:
+                return jsonify({"error": "duplicate", "message": msg}), 409
+            flash(msg, "danger")
+            return redirect(url_for("order_new"))
+
         oid = db.add_order(json.dumps(data, ensure_ascii=False))
-        db.bump_order_seq()
+        # Advance counter sau khi lưu thành công (trường hợp pre-filled từ step 3)
+        if submitted_seq is not None:
+            db.advance_counter_past(submitted_seq)
+        if is_ajax:
+            return jsonify({"ok": True, "redirect": url_for("order_detail", id=oid)})
         flash("Đã thêm lệnh mới", "success")
         return redirect(url_for("order_detail", id=oid))
     return render_template("order_form.html", order=None, fields=ORDER_FIELDS, data={})

@@ -1,5 +1,6 @@
 import sqlite3
 import os
+import json as _json
 from datetime import datetime
 
 def _now():
@@ -301,6 +302,26 @@ def find_order_by_so_hd(val):
         ).fetchone()
 
 
+def check_duplicate_so_hd(hdvv="", hdtc="", exclude_id=None):
+    """Check trùng mã HĐ tại thời điểm submit. Trả về (hdvv_dup, hdtc_dup), mỗi item là dict hoặc None."""
+    excl = " AND id != ?" if exclude_id else ""
+    hdvv_dup = hdtc_dup = None
+    with get_db() as conn:
+        if hdvv:
+            params = [f'%"Số Hợp đồng vay vốn": "{hdvv}"%'] + ([exclude_id] if exclude_id else [])
+            row = conn.execute(f"SELECT id, data FROM orders WHERE data LIKE ?{excl}", params).fetchone()
+            if row:
+                d = _json.loads(row["data"] or "{}")
+                hdvv_dup = {"order_id": row["id"], "ten_kh": d.get("Tên khách hàng", "")}
+        if hdtc:
+            params = [f'%"Số HĐ Thế chấp": "{hdtc}"%'] + ([exclude_id] if exclude_id else [])
+            row = conn.execute(f"SELECT id, data FROM orders WHERE data LIKE ?{excl}", params).fetchone()
+            if row:
+                d = _json.loads(row["data"] or "{}")
+                hdtc_dup = {"order_id": row["id"], "ten_kh": d.get("Tên khách hàng", "")}
+    return hdvv_dup, hdtc_dup
+
+
 def add_order(data_json):
     with get_db() as conn:
         cur = conn.execute("INSERT INTO orders (data, created_at) VALUES (?,?)", (data_json, _now()))
@@ -392,26 +413,16 @@ def delete_holiday(id):
 BANK_SEED = [
     ("100000","Sumitomo","NH SUMITOMO MITSUI BANKING CORP","SMBC"),
     ("100001","Citibank","Ngân hàng Citibank Việt Nam","Citibank"),
-    ("157979","Scb Bank","Ngân hàng TMCP Sài Gòn","SCB"),
-    ("166888","VietABank","Ngân hàng TMCP Việt Á","VAB"),
-    ("180906","VibBank","Ngân hàng TMCP Quốc Tế Việt Nam","VIB"),
-    ("191919","AbBank","Ngân hàng TMCP An Bình","ABB"),
     ("422589","CimbBank","Ngân hàng TNHH Một Thành Viên CIMB Việt Nam","CIMB"),
-    ("452999","EximBank","Ngân hàng TMCP Xuất Nhập khẩu Việt Nam","EIB"),
     ("458761","Hsbc","Ngân hàng HSBC Việt Nam","HSBC"),
     ("546034","Cake","Ngân hàng số CAKE by VPBank","CAKE"),
     ("546035","UBank","Ngân hàng số Ubank by VPBank","Ubank"),
-    ("686868","VietComBank","Ngân hàng TMCP Ngoại thương Việt Nam","VCB"),
     ("801011","Nhb","Ngân hàng NONGHYUP","NHB"),
-    ("818188","NcbBank","Ngân hàng TMCP Quốc Dân","NCB"),
-    ("888899","TechComBank","Ngân hàng TMCP Kỹ Thương Việt Nam","TCB"),
-    ("888999","Ivb","Ngân hàng TNHH Indovina","IVB"),
     ("963399","UMEE","Ngân hàng số UMEE by KienLongBank","UMEE"),
     ("970400","SaiGonBank","Ngân hàng TMCP Sài Gòn Công Thương","SGICB"),
     ("970403","SacomBank","Ngân hàng TMCP Sài Gòn Thương Tín","STB"),
     ("970405","AgriBank","Ngân hàng Nông nghiệp và Phát triển Nông thôn Việt Nam","AGRIBANK"),
     ("970406","DongABank","Ngân hàng TMCP Đông Á","DAB"),
-    ("970407","TechComBank","Ngân hàng TMCP Kỹ Thương Việt Nam","TCB"),
     ("970408","GpBank","Ngân hàng Thương mại TNHH Một Thành Viên Dầu Khí Toàn Cầu","GPB"),
     ("970409","BacABank","Ngân hàng TMCP Bắc Á","BAB"),
     ("970410","Scvn","Ngân hàng TNHH Một Thành Viên Standard Chartered","SCVN"),
@@ -420,16 +431,14 @@ BANK_SEED = [
     ("970415","VietTinBank","Ngân hàng TMCP Công Thương Việt Nam","CTG"),
     ("970416","AcbBank","Ngân hàng TMCP Á Châu","ACB"),
     ("970418","Bidv","Ngân hàng Đầu tư và Phát triển Việt Nam","BIDV"),
-    ("970419","NcbBank","Ngân hàng TMCP Quốc Dân","NCB"),
     ("970421","VrbBank","Ngân hàng liên doanh Việt Nga","VRB"),
     ("970422","MbBank","Ngân hàng TMCP Quân Đội","MB"),
     ("970423","TPBank","Ngân hàng TMCP Tiên Phong","TPB"),
     ("970424","Shbvn","Ngân hàng TNHH Một Thành Viên Shinhan Việt Nam","SHBVN"),
     ("970425","AbBank","Ngân hàng TMCP An Bình","ABB"),
     ("970426","Msb","Ngân hàng TMCP Hàng Hải Việt Nam","MSB"),
-    ("970427","VietABank","Ngân hàng TMCP Việt Á","VAB"),
     ("970428","NamABank","Ngân hàng TMCP Nam Á","NAB"),
-    ("970429","Scb Bank","Ngân hàng TMCP Sài Gòn","SCB"),
+    ("970429","ScbBank","Ngân hàng TMCP Sài Gòn","SCB"),
     ("970430","PgBank","Ngân hàng TMCP Thịnh vượng và Phát triển","PGB"),
     ("970431","EximBank","Ngân hàng TMCP Xuất Nhập khẩu Việt Nam","EIB"),
     ("970432","VPBank","Ngân hàng TMCP Việt Nam Thịnh Vượng","VPB"),
@@ -447,15 +456,12 @@ BANK_SEED = [
     ("970446","CcfBank","Ngân hàng Hợp Tác Xã Việt Nam","CCF"),
     ("970448","OcBank","Ngân hàng TMCP Phương Đông","OCB"),
     ("970449","LienVietPost","Ngân hàng TMCP Bưu Điện Liên Việt","LPB"),
-    ("970452","KienlongBank","NH TMCP Kiên Long (KienLong Bank)","KLB"),
+    ("970452","KienlongBank","NH TMCP Kiên Long","KLB"),
     ("970454","VietCapitalBank","Ngân hàng TMCP Bản Việt","VCCB"),
     ("970455","Ibk-Hn","Ngân hàng Công nghiệp Hàn Quốc - Chi nhánh Hà Nội","IBK-HN"),
     ("970456","Ibk-Hcm","Ngân hàng Industrial Bank of Korea - Chi nhánh Hồ Chí Minh","IBK-HCM"),
     ("970457","WvnBank","Ngân hàng Woori Bank Việt Nam","WVN"),
     ("970458","UobBank","Ngân hàng UOB Việt Nam","UOB"),
-    ("970468","SeaBank","Ngân hàng TMCP Đông Nam Á","SEAB"),
-    ("970488","Bidv","Ngân hàng Đầu tư và Phát triển Việt Nam","BIDV"),
-    ("981957","VPBank","Ngân hàng TMCP Việt Nam Thịnh Vượng","VPB"),
 ]
 
 
@@ -470,10 +476,61 @@ def seed_banks():
 
 # ── Order sequence ──
 
+def _find_next_free_seq(conn, start):
+    """Tìm số seq tiếp theo chưa bị dùng, bắt đầu từ start."""
+    current = start
+    while True:
+        seq_str = str(current).zfill(5)
+        row = conn.execute(
+            "SELECT 1 FROM orders WHERE data LIKE ? LIMIT 1",
+            (f'%": "{seq_str}/%',)
+        ).fetchone()
+        if not row:
+            return current
+        current += 1
+
+
 def get_next_order_seq():
+    """Chỉ đọc — dùng để preview ở step 3. Tự skip nếu counter lệch với DB."""
     with get_db() as conn:
         row = conn.execute("SELECT value FROM settings WHERE key='next_order_seq'").fetchone()
-        return int(row[0]) if row else 10000
+        start = int(row[0]) if row else 10000
+        return _find_next_free_seq(conn, start)
+
+
+def get_and_bump_order_seq():
+    """Atomic: lấy seq trống tiếp theo, bump counter, tránh race condition và desync."""
+    conn = get_db()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute("SELECT value FROM settings WHERE key='next_order_seq'").fetchone()
+        start = int(row[0]) if row else 10000
+        current = _find_next_free_seq(conn, start)
+        conn.execute("UPDATE settings SET value=? WHERE key='next_order_seq'", (str(current + 1),))
+        conn.commit()
+        return current
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def advance_counter_past(seq):
+    """Đẩy counter lên seq+1 nếu counter hiện tại <= seq. Dùng sau khi lưu order có số pre-filled."""
+    conn = get_db()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute("SELECT value FROM settings WHERE key='next_order_seq'").fetchone()
+        current = int(row[0]) if row else 10000
+        if current <= seq:
+            conn.execute("UPDATE settings SET value=? WHERE key='next_order_seq'", (str(seq + 1),))
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
 
 
 def bump_order_seq():

@@ -7,18 +7,12 @@
     </div>
     <div>
       <label class="form-label">Giới tính</label>
-      {% if order %}
       <select name="Giới tính" id="gt-select" style="width:100%;">
         <option value="">-- Chọn --</option>
         {% set gt = data.get('Giới tính','') %}
         <option value="Nam" {% if gt == 'Nam' %}selected{% endif %}>Nam</option>
         <option value="Nữ" {% if gt == 'Nữ' %}selected{% endif %}>Nữ</option>
       </select>
-      {% else %}
-      <input type="text" name="Giới tính" id="gt-select"
-             value="{{ data.get('Giới tính','') }}"
-             style="width:100%;background:var(--sidebar-bg);color:var(--text-2);" readonly>
-      {% endif %}
     </div>
     <div>
       <label class="form-label">Thông tin CMND/CCCD của KH</label>

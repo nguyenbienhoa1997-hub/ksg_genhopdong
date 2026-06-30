@@ -160,6 +160,24 @@
   </form>
 </div>
 
+<!-- Modal: trùng mã HĐ khi submit -->
+<div id="dup-modal" style="display:none;position:fixed;inset:0;background:rgba(0,0,0,.65);z-index:9999;align-items:center;justify-content:center;">
+  <div style="background:var(--card-bg);border-radius:14px;padding:0;max-width:460px;width:92%;box-shadow:0 12px 48px rgba(0,0,0,.4);overflow:hidden;">
+    <div style="background:#f59e0b;padding:16px 24px;display:flex;align-items:center;gap:10px;">
+      <span style="font-size:20px;">⚠️</span>
+      <span style="font-weight:700;font-size:16px;color:#fff;">Mã HĐ bị trùng</span>
+    </div>
+    <div style="padding:24px;">
+      <p id="dup-modal-msg" style="color:var(--text);margin-bottom:12px;font-size:14px;line-height:1.6;font-weight:500;"></p>
+      <p style="font-size:13px;color:var(--text-muted);margin-bottom:24px;">Bấm <strong>Lấy số mới</strong> để hệ thống tự cập nhật mã HĐ khác, sau đó xác nhận lại.</p>
+      <div style="display:flex;gap:10px;justify-content:flex-end;">
+        <button class="btn btn-ghost" onclick="closeDupModal()">Đóng</button>
+        <button class="btn btn-primary" id="dup-new-btn" onclick="fetchNewSeq()">🔄 Lấy số mới</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- BƯỚC 3: Xác nhận đặt lệnh -->
 <div id="step3" class="hidden">
   <div class="page-header">
@@ -649,12 +667,30 @@ function recalcAll() {
 // ── Step 3: Xác nhận ─────────────────────────────────────────────────────────
 async function goStep3() {
   const errs = [];
+
+  // ── Thông tin khách hàng (bắt buộc) ──
+  if (!document.querySelector('[name="Tên khách hàng"]')?.value.trim())          errs.push('Chưa nhập Tên khách hàng');
+  if (!document.getElementById('gt-select')?.value.trim())                       errs.push('Chưa nhập Giới tính');
+  if (!document.querySelector('[name="Thông tin CMND/CCCD của KH"]')?.value.trim()) errs.push('Chưa nhập CMND/CCCD');
+  if (!document.querySelector('[name="Ngày tháng năm Sinh"]')?.value.trim())     errs.push('Chưa nhập Ngày sinh');
+  if (!document.querySelector('[name="Ngày cấp"]')?.value.trim())                errs.push('Chưa nhập Ngày cấp');
+  if (!document.querySelector('[name="Nơi cấp"]')?.value.trim())                 errs.push('Chưa nhập Nơi cấp');
+  if (!document.querySelector('[name="Địa chỉ liên lạc"]')?.value.trim())       errs.push('Chưa nhập Địa chỉ liên lạc');
+  if (!document.querySelector('[name="Số điện thoại"]')?.value.trim())           errs.push('Chưa nhập Số điện thoại');
+  if (!document.querySelector('[name="ĐỊA CHỈ EMAIL "]')?.value.trim())         errs.push('Chưa nhập Địa chỉ email');
+  const _bankSel = document.getElementById('bank-account-select');
+  if (!_bankSel?.value || _bankSel.value === '')                                  errs.push('Chưa chọn Tài khoản nhận tiền');
+  if (!document.querySelector('[name="Người nhận hợp đồng"]')?.value.trim())     errs.push('Chưa nhập Người nhận hợp đồng');
+  if (!document.querySelector('[name="SĐT người nhận"]')?.value.trim())          errs.push('Chưa nhập SĐT người nhận');
+  if (!document.querySelector('[name="Địa chỉ người nhận"]')?.value.trim())      errs.push('Chưa nhập Địa chỉ người nhận');
+
+  // ── Thông tin hợp đồng (bắt buộc) ──
   if (!selectedLot)                                          errs.push('Chưa chọn Lô TP');
   if (!document.getElementById('cs-sel').value)              errs.push('Chưa chọn Chính sách');
   if (!document.getElementById('kh-sel').value)              errs.push('Chưa chọn Kỳ hạn');
   if (!document.getElementById('st-field').value.trim())     errs.push('Chưa nhập Số tiền đầu tư');
   if (!document.getElementById('ndt-field').value)           errs.push('Chưa chọn Ngày đầu tư');
-  if (errs.length) { alert(errs.join('\n')); return; }
+  if (errs.length) { alert('Vui lòng điền đầy đủ thông tin:\n\n' + errs.join('\n')); return; }
 
   // Thông tin khách hàng
   document.getElementById('c-ten-kh').value    = document.querySelector('[name="Tên khách hàng"]')?.value || '';
@@ -741,25 +777,82 @@ async function checkSoHD(input, statusId) {
   }, 500);
 }
 
-function submitOrder() {
+async function submitOrder() {
   // sync edited values back to hidden inputs
   const hdvv = document.getElementById('c-hdvv').value.trim();
   const hdtc = document.getElementById('c-hdtc').value.trim();
   document.getElementById('h-so-hdvv').value = hdvv;
   document.getElementById('h-so-hdtc').value = hdtc;
 
-  // block if duplicate warning present
+  // block if live check already flagged duplicate — show modal instead of alert
   const hdvvStatus = document.getElementById('hd-hdvv-status').innerHTML;
   const hdtcStatus = document.getElementById('hd-hdtc-status').innerHTML;
   if (hdvvStatus.includes('Trùng') || hdtcStatus.includes('Trùng')) {
-    alert('Mã hợp đồng bị trùng, vui lòng kiểm tra lại trước khi đặt lệnh.');
+    const msgs = [];
+    if (hdvvStatus.includes('Trùng')) msgs.push(document.getElementById('hd-hdvv-status').textContent.trim());
+    if (hdtcStatus.includes('Trùng')) msgs.push(document.getElementById('hd-hdtc-status').textContent.trim());
+    document.getElementById('dup-modal-msg').textContent = msgs.join(' | ');
+    document.getElementById('dup-modal').style.display = 'flex';
     return;
   }
 
   const btn = document.getElementById('confirm-btn');
   btn.disabled = true;
   btn.textContent = '⏳ Đang xử lý...';
-  document.getElementById('order-form').submit();
+
+  try {
+    const form = document.getElementById('order-form');
+    const res = await fetch(form.action, {
+      method: 'POST',
+      body: new FormData(form),
+      headers: { 'X-Requested-With': 'XMLHttpRequest' }
+    });
+    const result = await res.json();
+    if (result.error === 'duplicate') {
+      document.getElementById('dup-modal-msg').textContent = result.message || 'Mã HĐ đã tồn tại.';
+      document.getElementById('dup-modal').style.display = 'flex';
+      btn.disabled = false;
+      btn.textContent = '✅ Xác nhận đặt lệnh';
+    } else if (result.error) {
+      alert(result.message || 'Có lỗi xảy ra, vui lòng thử lại.');
+      btn.disabled = false;
+      btn.textContent = '✅ Xác nhận đặt lệnh';
+    } else if (result.redirect) {
+      window.location.href = result.redirect;
+    }
+  } catch (e) {
+    alert('Lỗi kết nối, vui lòng thử lại.');
+    btn.disabled = false;
+    btn.textContent = '✅ Xác nhận đặt lệnh';
+  }
+}
+
+function closeDupModal() {
+  document.getElementById('dup-modal').style.display = 'none';
+}
+
+async function fetchNewSeq() {
+  const newBtn = document.getElementById('dup-new-btn');
+  newBtn.disabled = true;
+  newBtn.textContent = '⏳ Đang lấy...';
+  try {
+    const res  = await fetch('/api/next-order-seq');
+    const data = await res.json();
+    const seqStr = String(data.seq).padStart(5, '0');
+    const maVk   = selectedLot?.ma_vk || '';
+    const hdvvEl = document.getElementById('c-hdvv');
+    const hdtcEl = document.getElementById('c-hdtc');
+    hdvvEl.value = `${seqStr}/HDVV-KGALAXY.${maVk}-KSG01`;
+    hdtcEl.value = `${seqStr}/HDTC-KGALAXY.${maVk}-KSG01`;
+    checkSoHD(hdvvEl, 'hd-hdvv-status');
+    checkSoHD(hdtcEl, 'hd-hdtc-status');
+    closeDupModal();
+  } catch (e) {
+    alert('Lỗi khi lấy số mới, thử lại.');
+  } finally {
+    newBtn.disabled = false;
+    newBtn.textContent = '🔄 Lấy số mới';
+  }
 }
 
 loadLots();
