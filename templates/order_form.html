@@ -10,7 +10,7 @@
   <h1 class="page-title">Sửa lệnh</h1>
   <div style="display:flex;gap:8px;">
     <a href="{{ url_for('order_detail', id=order.id) }}" class="btn btn-ghost">Hủy</a>
-    <button form="order-form" type="submit" class="btn btn-primary">💾 Lưu lại</button>
+    <button type="button" class="btn btn-primary" onclick="validateAndSaveEdit()">💾 Lưu lại</button>
   </div>
 </div>
 <form id="order-form" method="POST" action="{{ url_for('order_edit', id=order.id) }}">
@@ -589,6 +589,8 @@ async function onPolicyChange(pid) {
   document.getElementById('ls-field').value = '';
   document.getElementById('h-kyhan').value  = '';
   selectedPct = 0;
+  const pidEl = document.getElementById('h-policy-id');
+  if (pidEl) pidEl.value = pid || '';
   if (!pid) return;
   const policy = activePolicies.find(p => p.id == pid);
   selectedPct = policy ? (policy.pct_the_chap || 0) : 0;
@@ -647,8 +649,9 @@ function recalcAll() {
   const laiSuat   = parseFloat((document.getElementById('ls-field')?.value || '').replace(',', '.')) || 0;
   const songay    = parseInt(document.getElementById('h-songay')?.value)   || 0;
 
-  if (amount > 0 && selectedPct > 0) {
-    const slTp = Math.ceil(amount * selectedPct / 100 / 100000);
+  const donGia = (selectedLot?.don_gia || 0);
+  if (amount > 0 && selectedPct > 0 && donGia > 0) {
+    const slTp = Math.ceil(amount * selectedPct / 100 / donGia);
     document.getElementById('h-sl-tp').value = slTp.toLocaleString('vi-VN');
   } else {
     document.getElementById('h-sl-tp').value = '';
@@ -855,14 +858,14 @@ async function fetchNewSeq() {
   }
 }
 
-loadLots();
-loadPolicies();
-loadHolidays();
+const IS_EDIT   = {{ 'true' if order else 'false' }};
+const EDIT_DATA = {{ data|tojson }};
 
 // Init Flatpickr cho Ngày đầu tư
 const _ndtEl = document.getElementById('ndt-field');
+let _fpInst = null;
 if (_ndtEl) {
-  flatpickr(_ndtEl, {
+  _fpInst = flatpickr(_ndtEl, {
     dateFormat: 'd/m/Y',
     allowInput: false,
     disableMobile: true,
@@ -870,6 +873,105 @@ if (_ndtEl) {
       onInvestDate(dateStr);
     }
   });
+}
+
+async function initForm() {
+  await Promise.all([loadLots(), loadPolicies(), loadHolidays()]);
+
+  if (!IS_EDIT) return;
+
+  // 1. Khôi phục Lô TP
+  const maVk = EDIT_DATA['Mã trái phiếu (theo Văn kiện trái phiếu)'];
+  if (maVk) {
+    const lot = allLots.find(l => l.ma_vk === maVk);
+    if (lot) {
+      document.getElementById('lot-select').value = lot.id;
+      onLotSelect(lot.id);
+    }
+  }
+
+  // 2. Khôi phục Chính sách + Kỳ hạn
+  const savedPolicyId = EDIT_DATA['_chinh_sach_id'];
+  const savedKyHan    = parseInt(EDIT_DATA['Kỳ hạn theo tháng'] || 0);
+  const savedLaiSuat  = parseFloat((EDIT_DATA['Lãi suất'] || '0').replace(',', '.'));
+
+  let policyRestored = false;
+
+  if (savedPolicyId) {
+    // Có policy ID đã lưu → dùng thẳng
+    const csSel = document.getElementById('cs-sel');
+    if (csSel) csSel.value = savedPolicyId;
+    await onPolicyChange(savedPolicyId);
+    policyRestored = true;
+  } else if (savedKyHan && savedLaiSuat) {
+    // Lệnh cũ chưa lưu policy ID → tìm ngược từ kỳ hạn + lãi suất
+    for (const policy of activePolicies) {
+      try {
+        const r = await fetch(`/api/policies/${policy.id}/tenors`);
+        const tenors = await r.json();
+        const match = tenors.find(t => t.ky_han == savedKyHan && Math.abs(t.loi_tuc - savedLaiSuat) < 0.01);
+        if (match) {
+          const csSel = document.getElementById('cs-sel');
+          if (csSel) csSel.value = policy.id;
+          await onPolicyChange(policy.id);
+          policyRestored = true;
+          break;
+        }
+      } catch(e) {}
+    }
+  }
+
+  // 3. Khôi phục Kỳ hạn trong dropdown
+  if (policyRestored && savedKyHan) {
+    const tenor = currentTenors.find(t => t.ky_han == savedKyHan);
+    if (tenor) {
+      const khSel = document.getElementById('kh-sel');
+      if (khSel) khSel.value = tenor.id;
+      onTenorChange(khSel);
+    }
+  }
+
+  // 4. Khôi phục Ngày đầu tư
+  const savedNgd = EDIT_DATA['Ngày giao dịch'];
+  if (savedNgd && _fpInst) {
+    _fpInst.setDate(savedNgd, true, 'd/m/Y');
+  }
+}
+
+initForm();
+
+function validateAndSaveEdit() {
+  const errs = [];
+
+  // Thông tin khách hàng
+  if (!document.querySelector('[name="Tên khách hàng"]')?.value.trim())               errs.push('Chưa nhập Tên khách hàng');
+  if (!document.getElementById('gt-select')?.value.trim())                             errs.push('Chưa chọn Giới tính');
+  if (!document.querySelector('[name="Thông tin CMND/CCCD của KH"]')?.value.trim())   errs.push('Chưa nhập CMND/CCCD');
+  if (!document.querySelector('[name="Ngày tháng năm Sinh"]')?.value.trim())           errs.push('Chưa nhập Ngày sinh');
+  if (!document.querySelector('[name="Ngày cấp"]')?.value.trim())                      errs.push('Chưa nhập Ngày cấp');
+  if (!document.querySelector('[name="Nơi cấp"]')?.value.trim())                       errs.push('Chưa nhập Nơi cấp');
+  if (!document.querySelector('[name="Địa chỉ liên lạc"]')?.value.trim())             errs.push('Chưa nhập Địa chỉ liên lạc');
+  if (!document.querySelector('[name="Số điện thoại"]')?.value.trim())                 errs.push('Chưa nhập Số điện thoại');
+  if (!document.querySelector('[name="ĐỊA CHỈ EMAIL "]')?.value.trim())               errs.push('Chưa nhập Địa chỉ email');
+  const _bSel = document.getElementById('bank-account-select');
+  if (!_bSel?.value || _bSel.value === '')                                              errs.push('Chưa chọn Tài khoản nhận tiền');
+  if (!document.querySelector('[name="Người nhận hợp đồng"]')?.value.trim())          errs.push('Chưa nhập Người nhận hợp đồng');
+  if (!document.querySelector('[name="SĐT người nhận"]')?.value.trim())                errs.push('Chưa nhập SĐT người nhận');
+  if (!document.querySelector('[name="Địa chỉ người nhận"]')?.value.trim())           errs.push('Chưa nhập Địa chỉ người nhận');
+
+  // Thông tin hợp đồng
+  if (!document.getElementById('lot-select')?.value)                                   errs.push('Chưa chọn Lô Trái Phiếu');
+  if (!document.getElementById('cs-sel')?.value)                                       errs.push('Chưa chọn Chính sách');
+  if (!document.getElementById('kh-sel')?.value)                                       errs.push('Chưa chọn Kỳ hạn');
+  if (!document.getElementById('st-field')?.value.trim())                              errs.push('Chưa nhập Số tiền đầu tư');
+  if (!document.getElementById('h-ngd')?.value.trim())                                 errs.push('Chưa chọn Ngày đầu tư');
+
+  if (errs.length) {
+    alert('Vui lòng điền đầy đủ thông tin:\n\n' + errs.join('\n'));
+    return;
+  }
+
+  document.getElementById('order-form').submit();
 }
 </script>
 {% endblock %}

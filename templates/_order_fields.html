@@ -2,11 +2,11 @@
   <div class="section-title">Thông tin khách hàng</div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
     <div>
-      <label class="form-label">Tên khách hàng</label>
+      <label class="form-label">Tên khách hàng <span style="color:var(--danger);">*</span></label>
       <input type="text" name="Tên khách hàng" value="{{ data.get('Tên khách hàng','') }}" style="width:100%;">
     </div>
     <div>
-      <label class="form-label">Giới tính</label>
+      <label class="form-label">Giới tính <span style="color:var(--danger);">*</span></label>
       <select name="Giới tính" id="gt-select" style="width:100%;">
         <option value="">-- Chọn --</option>
         {% set gt = data.get('Giới tính','') %}
@@ -15,31 +15,31 @@
       </select>
     </div>
     <div>
-      <label class="form-label">Thông tin CMND/CCCD của KH</label>
+      <label class="form-label">Thông tin CMND/CCCD của KH <span style="color:var(--danger);">*</span></label>
       <input type="text" name="Thông tin CMND/CCCD của KH" value="{{ data.get('Thông tin CMND/CCCD của KH','') }}" style="width:100%;">
     </div>
     <div>
-      <label class="form-label">Ngày tháng năm Sinh</label>
+      <label class="form-label">Ngày tháng năm Sinh <span style="color:var(--danger);">*</span></label>
       <input type="text" name="Ngày tháng năm Sinh" value="{{ data.get('Ngày tháng năm Sinh','') }}" style="width:100%;">
     </div>
     <div>
-      <label class="form-label">Ngày cấp</label>
+      <label class="form-label">Ngày cấp <span style="color:var(--danger);">*</span></label>
       <input type="text" name="Ngày cấp" value="{{ data.get('Ngày cấp','') }}" style="width:100%;">
     </div>
     <div>
-      <label class="form-label">Nơi cấp</label>
+      <label class="form-label">Nơi cấp <span style="color:var(--danger);">*</span></label>
       <input type="text" name="Nơi cấp" value="{{ data.get('Nơi cấp','') }}" style="width:100%;">
     </div>
     <div style="grid-column:1/-1;">
-      <label class="form-label">Địa chỉ liên lạc</label>
+      <label class="form-label">Địa chỉ liên lạc <span style="color:var(--danger);">*</span></label>
       <input type="text" name="Địa chỉ liên lạc" value="{{ data.get('Địa chỉ liên lạc','') }}" style="width:100%;">
     </div>
     <div>
-      <label class="form-label">Số điện thoại</label>
+      <label class="form-label">Số điện thoại <span style="color:var(--danger);">*</span></label>
       <input type="text" name="Số điện thoại" value="{{ data.get('Số điện thoại','') }}" style="width:100%;">
     </div>
     <div>
-      <label class="form-label">Địa chỉ email</label>
+      <label class="form-label">Địa chỉ email <span style="color:var(--danger);">*</span></label>
       <input type="text" name="ĐỊA CHỈ EMAIL " value="{{ data.get('ĐỊA CHỈ EMAIL ','') }}" style="width:100%;">
     </div>
     <div style="grid-column:1/-1;">
@@ -128,8 +128,9 @@
     <input type="hidden" name="Số ngày cho vay"      id="h-songay" value="{{ data.get('Số ngày cho vay','') }}">
     <input type="hidden" name="Số tiền bằng chữ"    id="h-stbc"   value="{{ data.get('Số tiền bằng chữ','') }}">
     <input type="hidden" name="Số tiền thực nhận"   id="h-tien-tn" value="{{ data.get('Số tiền thực nhận','') }}">
-    <input type="hidden" name="Số Hợp đồng vay vốn" id="h-so-hdvv" value="{{ data.get('Số Hợp đồng vay vốn','') }}">
-    <input type="hidden" name="Số HĐ Thế chấp"     id="h-so-hdtc" value="{{ data.get('Số HĐ Thế chấp','') }}">
+    <input type="hidden" name="Số Hợp đồng vay vốn" id="h-so-hdvv"     value="{{ data.get('Số Hợp đồng vay vốn','') }}">
+    <input type="hidden" name="Số HĐ Thế chấp"     id="h-so-hdtc"     value="{{ data.get('Số HĐ Thế chấp','') }}">
+    <input type="hidden" name="_chinh_sach_id"       id="h-policy-id"   value="{{ data.get('_chinh_sach_id','') }}">
   </div>
 </div>
 
@@ -186,19 +187,19 @@
   <div class="section-title">Thông tin gửi hợp đồng</div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
     <div style="grid-column:1/-1;">
-      <label class="form-label">Người nhận hợp đồng</label>
+      <label class="form-label">Người nhận hợp đồng <span style="color:var(--danger);">*</span></label>
       <input type="text" name="Người nhận hợp đồng"
              value="{{ data.get('Người nhận hợp đồng','') }}" style="width:100%;"
              placeholder="Nhập tên người nhận...">
     </div>
     <div>
-      <label class="form-label">SĐT người nhận</label>
+      <label class="form-label">SĐT người nhận <span style="color:var(--danger);">*</span></label>
       <input type="text" name="SĐT người nhận"
              value="{{ data.get('SĐT người nhận','') }}" style="width:100%;"
              placeholder="Nhập số điện thoại...">
     </div>
     <div>
-      <label class="form-label">Địa chỉ người nhận</label>
+      <label class="form-label">Địa chỉ người nhận <span style="color:var(--danger);">*</span></label>
       <input type="text" name="Địa chỉ người nhận"
              value="{{ data.get('Địa chỉ người nhận','') }}" style="width:100%;"
              placeholder="Nhập địa chỉ...">

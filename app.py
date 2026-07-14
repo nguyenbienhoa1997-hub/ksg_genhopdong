@@ -496,6 +496,7 @@ ORDER_FIELDS = [
     "Mã trái phiếu (do VSDC cấp)", "TỔ CHỨC PH", "NGÀY PHÁT HÀNH ",
     "NGÀY ĐÁO HẠN ", "ĐỊA CHỈ EMAIL ", "SỐ TKCK", "NƠI MỞ TKCK", "Phí phong tỏa",
     "Người nhận hợp đồng", "SĐT người nhận", "Địa chỉ người nhận",
+    "_chinh_sach_id",
 ]
 
 
