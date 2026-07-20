@@ -13,9 +13,19 @@
             id="btn-review" onclick="toggleReview()">
       {% if rs == 'da_kiem_tra' %}✅ Đã kiểm tra{% else %}🔍 Duyệt hợp đồng{% endif %}
     </button>
+    {% if can_extend %}
+    <a href="{{ url_for('order_extend', id=order.id) }}" class="btn btn-ghost">🔄 Gia hạn</a>
+    {% else %}
+    <span class="btn btn-ghost" style="opacity:.5;cursor:not-allowed;" title="{{ extend_note }}">🔄 Gia hạn</span>
+    {% endif %}
     <button class="btn btn-primary" onclick="openGenModal()">🚀 Tạo hợp đồng</button>
   </div>
 </div>
+{% if not can_extend and extend_note %}
+<div style="font-size:12px;color:var(--text-3);text-align:right;margin-top:-16px;margin-bottom:16px;">
+  🔒 {{ extend_note }}
+</div>
+{% endif %}
 
 <!-- Tabs -->
 <div class="tabs">
@@ -64,6 +74,24 @@
 </div>
 
 <div id="panel-info">
+  {% if extend_parent or extend_children %}
+  <div class="section">
+    <div class="section-title">Liên kết gia hạn</div>
+    {% if extend_parent %}
+    <div style="font-size:13px;margin-bottom:6px;">
+      🔗 Gia hạn từ lệnh
+      <a href="{{ url_for('order_detail', id=extend_parent.id) }}">#{{ extend_parent.id }}</a>
+    </div>
+    {% endif %}
+    {% for c in extend_children %}
+    <div style="font-size:13px;margin-bottom:6px;">
+      🔗 Đã gia hạn thành lệnh
+      <a href="{{ url_for('order_detail', id=c.id) }}">#{{ c.id }}</a>
+    </div>
+    {% endfor %}
+  </div>
+  <div class="divider"></div>
+  {% endif %}
   <div class="section">
     <div class="section-title">Thông tin chung</div>
     <div class="detail-grid">
@@ -133,6 +161,14 @@
         <span class="badge badge-blue">{{ t.code }}</span>
         {{ t.name }}
       </label>
+      {% else %}
+      {% if is_extension %}
+      <div style="font-size:13px;color:var(--text-3);padding:10px 14px;background:var(--sidebar-bg);border-radius:8px;">
+        ⚠️ Chưa có mẫu gia hạn cho tổ hợp
+        <strong>{{ data.get('Kiểu gia hạn','') }}</strong> + <strong>{{ data.get('Loại gia hạn','') }}</strong>
+        — vào <a href="{{ url_for('ext_templates_page') }}">Quản lý mẫu gia hạn</a> để thêm.
+      </div>
+      {% endif %}
       {% endfor %}
     </div>
     <div id="gen-modal-result" class="hidden"

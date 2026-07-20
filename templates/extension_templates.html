@@ -1,0 +1,158 @@
+{% extends "layout.html" %}
+{% block title %}Quản lý mẫu gia hạn{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h1 class="page-title">Quản lý mẫu gia hạn</h1>
+  <button class="btn btn-primary" onclick="openModal()">+ Upload mẫu mới</button>
+</div>
+
+<!-- Hướng dẫn -->
+<div style="background:var(--accent-lt);border:1px solid #bfdbfe;border-radius:8px;padding:14px 16px;margin-bottom:24px;font-size:13px;color:#1e40af;">
+  <strong style="display:block;margin-bottom:6px;">📌 Cách đặt biến trong file Word</strong>
+  Dùng cú pháp <code>{{ TEN_BIEN }}</code> trong file Word, trong đó <code>TEN_BIEN</code> là tên field của lệnh
+  (dấu cách và ký tự đặc biệt tự động chuyển thành dấu <code>_</code>).<br>
+  Ví dụ: <code>Kỳ hạn cũ</code> → biến <code>{{ Kỳ_hạn_cũ }}</code>, <code>Lãi suất cũ</code> → biến <code>{{ Lãi_suất_cũ }}</code><br>
+  Các mẫu ở đây <strong>chỉ dùng cho lệnh gia hạn</strong> — lệnh thường sẽ không thấy các mẫu này khi tạo hợp đồng.
+</div>
+
+{% if templates %}
+<div class="table-wrap" style="overflow:visible;">
+  <table>
+    <thead>
+      <tr>
+        <th>Tên mẫu</th>
+        <th>Mã mẫu</th>
+        <th>Kiểu gia hạn</th>
+        <th>Loại gia hạn</th>
+        <th>File gốc</th>
+        <th>Ngày upload</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for t in templates %}
+      <tr>
+        <td><strong>{{ t.name }}</strong></td>
+        <td><span class="badge badge-blue">{{ t.code }}</span></td>
+        <td>{% for k in t.kieu_list %}<span class="badge badge-gray" style="margin-right:4px;">{{ k }}</span>{% endfor %}</td>
+        <td>{% for l in t.loai_list %}<span class="badge badge-gray" style="margin-right:4px;">{{ l }}</span>{% endfor %}</td>
+        <td class="text-secondary">{{ t.filename }}</td>
+        <td class="text-secondary">{{ t.created_at[:10] }}</td>
+        <td style="text-align:right;">
+          <div class="split-btn">
+            <a href="{{ url_for('download_extension_template', id=t.id) }}" class="split-btn-main">Xem</a>
+            <button class="split-btn-arrow" onclick="toggleDropdown(this)">▾</button>
+            <div class="action-menu">
+              <form method="POST" action="{{ url_for('delete_extension_template', id=t.id) }}">
+                <button type="submit" class="action-item action-item-danger"
+                        onclick="return confirm('Xóa mẫu này?')">🗑 Xóa</button>
+              </form>
+            </div>
+          </div>
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="empty-state">
+  <div class="empty-icon">📝</div>
+  <div class="empty-title">Chưa có mẫu gia hạn nào</div>
+  <div class="empty-desc">Upload file Word (.docx) đã có biến <code>{{ TEN_BIEN }}</code> để bắt đầu</div>
+  <button class="btn btn-primary" onclick="openModal()">+ Upload mẫu đầu tiên</button>
+</div>
+{% endif %}
+
+<!-- Modal upload -->
+<div class="modal-overlay hidden" id="modal">
+  <div class="modal">
+    <div class="modal-title">Upload mẫu gia hạn mới</div>
+    <form method="POST" action="{{ url_for('upload_extension_template') }}" enctype="multipart/form-data">
+
+      <div class="form-group">
+        <label class="form-label">Tên mẫu</label>
+        <input type="text" name="name" placeholder="Ví dụ: Phụ lục gia hạn" required>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Mã mẫu</label>
+        <input type="text" name="code" placeholder="Ví dụ: PLGH" required
+               style="text-transform:uppercase;"
+               oninput="this.value=this.value.toUpperCase()">
+        <div class="form-hint">
+          Mã phải là duy nhất (trong nhóm mẫu gia hạn).
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Kiểu gia hạn áp dụng <span style="color:var(--danger);">*</span></label>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <label style="display:flex;align-items:center;gap:8px;font-weight:400;font-size:14px;">
+            <input type="checkbox" name="kieu_gia_han" value="Gia hạn gốc"> Gia hạn gốc
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;font-weight:400;font-size:14px;">
+            <input type="checkbox" name="kieu_gia_han" value="Gia hạn gốc và lợi ích"> Gia hạn gốc và lợi ích
+          </label>
+        </div>
+        <div class="form-hint">Chọn được nhiều — nếu mẫu dùng chung cho cả 2 kiểu.</div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">Loại gia hạn áp dụng <span style="color:var(--danger);">*</span></label>
+        <div style="display:flex;flex-direction:column;gap:8px;">
+          <label style="display:flex;align-items:center;gap:8px;font-weight:400;font-size:14px;">
+            <input type="checkbox" name="loai_gia_han" value="Không chuyển lô"> Không chuyển lô
+          </label>
+          <label style="display:flex;align-items:center;gap:8px;font-weight:400;font-size:14px;">
+            <input type="checkbox" name="loai_gia_han" value="Chuyển lô"> Chuyển lô
+          </label>
+        </div>
+        <div class="form-hint">
+          Chọn được nhiều. Mẫu chỉ hiện ra ở lệnh gia hạn khi khớp cả Kiểu lẫn Loại đã chọn ở đây.
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label">File Word (.docx)</label>
+        <div class="upload-area" id="upload-box">
+          <input type="file" name="file" accept=".docx" required
+                 onchange="onFileSelect(this)">
+          <div class="upload-icon">📄</div>
+          <div class="upload-text">Kéo thả hoặc bấm để chọn file</div>
+          <div class="upload-hint">.docx — tối đa 20MB</div>
+          <div class="upload-filename hidden" id="upload-fname"></div>
+        </div>
+      </div>
+
+      <div class="modal-actions">
+        <button type="button" class="btn btn-ghost" onclick="closeModal()">Hủy</button>
+        <button type="submit" class="btn btn-primary">Upload mẫu</button>
+      </div>
+    </form>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function openModal()  { document.getElementById('modal').classList.remove('hidden'); }
+function closeModal() { document.getElementById('modal').classList.add('hidden'); }
+
+// Close on overlay click
+document.getElementById('modal').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+function onFileSelect(input) {
+  const file = input.files[0];
+  if (!file) return;
+  const box   = document.getElementById('upload-box');
+  const fname = document.getElementById('upload-fname');
+  box.classList.add('has-file');
+  fname.textContent = file.name;
+  fname.classList.remove('hidden');
+}
+</script>
+{% endblock %}

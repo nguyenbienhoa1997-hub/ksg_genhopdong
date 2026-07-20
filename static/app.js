@@ -39,6 +39,27 @@ function numToViWords(n) {
   return raw.charAt(0).toUpperCase() + raw.slice(1) + ' đồng chẵn';
 }
 
+// ── EDATE: cộng tháng, giống Excel (cuối tháng giữ nguyên cuối tháng) ──
+function edate(date, months) {
+  const d = new Date(date);
+  const targetMonth = d.getMonth() + months;
+  const y = d.getFullYear() + Math.floor(targetMonth / 12);
+  const m = ((targetMonth % 12) + 12) % 12;
+  const lastDay = new Date(y, m + 1, 0).getDate();
+  return new Date(y, m, Math.min(d.getDate(), lastDay));
+}
+
+// ── Tìm ngày làm việc đầu tiên >= date (né T7/CN + ngày lễ) ──
+function nextWorkdayOnOrAfter(date, holidays) {
+  const d = new Date(date);
+  const holidaySet = new Set(holidays || []);
+  const fmt = x => `${x.getFullYear()}-${String(x.getMonth()+1).padStart(2,'0')}-${String(x.getDate()).padStart(2,'0')}`;
+  while (d.getDay() === 0 || d.getDay() === 6 || holidaySet.has(fmt(d))) {
+    d.setDate(d.getDate() + 1);
+  }
+  return d;
+}
+
 // ── Money input formatter (VN: dấu chấm ngàn) ──
 function fmtMoneyInput(el) {
   const pos   = el.selectionStart;

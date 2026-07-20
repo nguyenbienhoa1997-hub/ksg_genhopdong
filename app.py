@@ -1,6 +1,8 @@
 import os
+import re
 import uuid
 import json
+from datetime import datetime
 import requests as http_req
 import urllib3
 urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
@@ -93,6 +95,7 @@ app.config["TEMPLATES_AUTO_RELOAD"] = True
 
 UPLOAD_DIR    = os.path.join(os.path.dirname(__file__), "uploads")
 TEMPLATES_DIR = os.path.join(UPLOAD_DIR, "templates")
+EXT_TEMPLATES_DIR = os.path.join(UPLOAD_DIR, "extension_templates")
 PDFS_DIR      = os.path.join(UPLOAD_DIR, "pdfs")
 
 db.init_db()
@@ -497,7 +500,28 @@ ORDER_FIELDS = [
     "NGÀY ĐÁO HẠN ", "ĐỊA CHỈ EMAIL ", "SỐ TKCK", "NƠI MỞ TKCK", "Phí phong tỏa",
     "Người nhận hợp đồng", "SĐT người nhận", "Địa chỉ người nhận",
     "_chinh_sach_id",
+    # ── Snapshot khi gia hạn (rollover) ──
+    "Kỳ hạn cũ", "Ngày đáo hạn cũ", "Lãi suất cũ", "Ngày giao dịch cũ", "Lần gia hạn",
+    "Số HĐ vay vốn cũ", "Số HĐ Thế chấp cũ", "Giá trị hợp đồng cũ", "Số tiền thực nhận cũ",
+    "Số tiền bằng chữ cũ", "Số tiền lãi HĐ cũ", "Số tiền thực nhận bằng chữ cũ",
+    "Số tiền trả KH", "Số tiền trả KH bằng chữ", "Lãi trong hạn",
+    "_gia_han_chinh_sach_id", "Loại gia hạn", "Kiểu gia hạn",
 ]
+
+
+def _compute_can_extend(data):
+    """Chỉ cho gia hạn khi còn <= 15 ngày tới Ngày đáo hạn HĐ."""
+    ndh_raw = (data.get("Ngày đáo hạn HĐ") or "").strip()
+    if not ndh_raw:
+        return False, "Chưa có Ngày đáo hạn HĐ."
+    try:
+        maturity  = datetime.strptime(ndh_raw, "%d/%m/%Y").date()
+        days_left = (maturity - datetime.now().date()).days
+    except ValueError:
+        return False, "Không xác định được Ngày đáo hạn HĐ."
+    if days_left <= 15:
+        return True, ""
+    return False, f"Chỉ được gia hạn trong vòng 15 ngày trước hạn — còn {days_left - 15} ngày nữa."
 
 
 @app.route("/orders")
@@ -697,9 +721,110 @@ def order_detail(id):
     if not order: return redirect(url_for("orders_page"))
     data = json.loads(order["data"]) if order["data"] else {}
     contracts = [dict(c) for c in db.get_contracts_by_order(id)]
+    can_extend, extend_note = _compute_can_extend(data)
+    extend_parent   = db.get_order(order["extended_from_order_id"]) if order["extended_from_order_id"] else None
+    extend_children = db.get_children_orders(id)
+    is_extension     = bool(order["extended_from_order_id"])
+    gen_templates    = (db.get_extension_templates_for(data.get("Loại gia hạn", ""), data.get("Kiểu gia hạn", ""))
+                        if is_extension else db.get_templates())
+
     return render_template("order_detail.html", order=order, data=data,
-                           fields=ORDER_FIELDS, templates=db.get_templates(),
-                           contracts=contracts)
+                           fields=ORDER_FIELDS, templates=gen_templates,
+                           contracts=contracts, can_extend=can_extend, extend_note=extend_note,
+                           extend_parent=extend_parent, extend_children=extend_children,
+                           is_extension=is_extension)
+
+
+@app.route("/orders/<int:id>/extend", methods=["GET", "POST"])
+def order_extend(id):
+    order = db.get_order(id)
+    if not order:
+        return redirect(url_for("orders_page"))
+
+    old_data = json.loads(order["data"]) if order["data"] else {}
+    can_extend, extend_note = _compute_can_extend(old_data)
+    if not can_extend:
+        flash(extend_note or "Lệnh này chưa đủ điều kiện gia hạn.", "danger")
+        return redirect(url_for("order_detail", id=id))
+
+    depth      = db.get_order_chain_depth(id) + 1
+    root_order = db.get_order(db.get_root_order_id(id))
+    root_data  = json.loads(root_order["data"]) if root_order["data"] else {}
+
+    def _with_gh_suffix(so_hd):
+        base = re.sub(r"/GH\d+$", "", (so_hd or "").strip())
+        return f"{base}/GH{depth:02d}" if base else ""
+
+    if request.method == "POST":
+        new_data = {f: request.form.get(f, "") for f in ORDER_FIELDS}
+        required = ["Kỳ hạn theo tháng", "Lãi suất", "Ngày giao dịch", "Ngày đáo hạn HĐ", "Giá trị hợp đồng trái phiếu"]
+        missing  = [f for f in required if not new_data.get(f, "").strip()]
+        if missing:
+            flash("Vui lòng chọn đầy đủ: " + ", ".join(missing), "danger")
+            return redirect(url_for("order_extend", id=id))
+
+        # Ngày đáo hạn HĐ mới không được >= ngày đáo hạn lô TP
+        lot_ndh_raw = (new_data.get("NGÀY ĐÁO HẠN ") or "").strip()
+        if lot_ndh_raw:
+            try:
+                new_maturity = datetime.strptime(new_data["Ngày đáo hạn HĐ"], "%d/%m/%Y")
+                lot_maturity = datetime.strptime(lot_ndh_raw, "%d/%m/%Y")
+                if new_maturity >= lot_maturity:
+                    flash(f"Ngày đáo hạn mới ({new_data['Ngày đáo hạn HĐ']}) không được >= "
+                          f"ngày đáo hạn lô TP ({lot_ndh_raw}).", "danger")
+                    return redirect(url_for("order_extend", id=id))
+            except ValueError:
+                pass
+
+        hdvv_dup, hdtc_dup = db.check_duplicate_so_hd(
+            new_data.get("Số Hợp đồng vay vốn", ""), new_data.get("Số HĐ Thế chấp", "")
+        )
+        if hdvv_dup or hdtc_dup:
+            flash("Số HĐ gia hạn bị trùng, vui lòng thử lại.", "danger")
+            return redirect(url_for("order_extend", id=id))
+
+        oid = db.add_order(json.dumps(new_data, ensure_ascii=False), extended_from_order_id=id)
+        flash(f"Đã tạo lệnh gia hạn lần {depth} từ lệnh #{id}", "success")
+        return redirect(url_for("order_detail", id=oid))
+
+    # GET: chuẩn bị dữ liệu prefill
+    prefill = dict(old_data)
+    prefill["Số Hợp đồng vay vốn"] = _with_gh_suffix(root_data.get("Số Hợp đồng vay vốn", ""))
+    prefill["Số HĐ Thế chấp"]      = _with_gh_suffix(root_data.get("Số HĐ Thế chấp", ""))
+    prefill["Kỳ hạn cũ"]           = old_data.get("Kỳ hạn theo tháng", "")
+    prefill["Ngày đáo hạn cũ"]     = old_data.get("Ngày đáo hạn HĐ", "")
+    prefill["Lãi suất cũ"]         = old_data.get("Lãi suất", "")
+    prefill["Ngày giao dịch cũ"]   = old_data.get("Ngày giao dịch", "")
+    prefill["Số HĐ vay vốn cũ"]    = old_data.get("Số Hợp đồng vay vốn", "")
+    prefill["Số HĐ Thế chấp cũ"]   = old_data.get("Số HĐ Thế chấp", "")
+    prefill["Giá trị hợp đồng cũ"] = old_data.get("Giá trị hợp đồng trái phiếu", "")
+    prefill["Số tiền thực nhận cũ"] = old_data.get("Số tiền thực nhận", "")
+    prefill["Lần gia hạn"]         = str(depth)
+
+    def _parse_amount(s):
+        try:
+            return int(re.sub(r"[.,\s]", "", s or "0") or "0")
+        except ValueError:
+            return 0
+
+    _old_goc       = _parse_amount(old_data.get("Giá trị hợp đồng trái phiếu", ""))
+    _old_thuc_nhan = _parse_amount(old_data.get("Số tiền thực nhận", ""))
+    _old_lai       = max(0, _old_thuc_nhan - _old_goc)
+    prefill["Số tiền lãi HĐ cũ"] = f"{_old_lai:,}".replace(",", ".") if _old_lai else "0"
+    ngay_gd_moi = old_data.get("Ngày đáo hạn HĐ", "")
+    prefill["Ngày giao dịch"] = ngay_gd_moi
+    try:
+        _d = datetime.strptime(ngay_gd_moi, "%d/%m/%Y")
+        prefill["Ngày bằng chữ"] = f"ngày {_d.day} tháng {_d.month} năm {_d.year}"
+    except ValueError:
+        prefill["Ngày bằng chữ"] = ""
+    for f in ["Kỳ hạn theo tháng", "Lãi suất", "Ngày đáo hạn HĐ", "Số ngày cho vay",
+              "_chinh_sach_id", "_gia_han_chinh_sach_id",
+              "Số tiền thực nhận", "Số lượng trái phiếu thế chấp", "Số tiền bằng chữ"]:
+        prefill[f] = ""
+
+    return render_template("order_extend.html", parent=order, parent_data=old_data,
+                           data=prefill, fields=ORDER_FIELDS, depth=depth)
 
 
 @app.route("/orders/<int:id>/edit", methods=["GET", "POST"])
@@ -722,7 +847,9 @@ def order_generate(id):
 
     row_data     = json.loads(order["data"]) if order["data"] else {}
     template_ids = request.get_json(silent=True, force=True).get("template_ids", [])
-    all_tpls     = list(db.get_templates())
+    is_extension = bool(order["extended_from_order_id"])
+    all_tpls     = (list(db.get_extension_templates_for(row_data.get("Loại gia hạn", ""), row_data.get("Kiểu gia hạn", "")))
+                    if is_extension else list(db.get_templates()))
     if template_ids:
         id_set   = set(str(x) for x in template_ids)
         all_tpls = [t for t in all_tpls if str(t["id"]) in id_set]
@@ -918,6 +1045,108 @@ def policy_tenor_delete(id, tid):
     return jsonify({"success": True})
 
 
+# ── Extension Policies (Chính sách gia hạn) ─────────────────────────────────
+
+@app.route("/settings/extension-policies")
+def ext_policies_page():
+    policies = [dict(r) for r in db.get_extension_policies()]
+    return render_template("extension_policies.html", policies=policies)
+
+
+@app.route("/settings/extension-policies", methods=["POST"])
+def ext_policy_create():
+    data = request.get_json(silent=True) or {}
+    ten  = data.get("ten_chinh_sach", "").strip()
+    pct  = data.get("pct_the_chap", 0)
+    if not ten:
+        return jsonify({"error": "Tên chính sách không được để trống"}), 400
+    try:
+        pct = float(pct)
+    except (ValueError, TypeError):
+        pct = 0.0
+    pid = db.add_extension_policy(ten, pct)
+    policy = dict(db.get_extension_policy(pid))
+    return jsonify({"success": True, "policy": policy})
+
+
+@app.route("/settings/extension-policies/<int:id>")
+def ext_policy_detail(id):
+    policy = db.get_extension_policy(id)
+    if not policy:
+        return redirect(url_for("ext_policies_page"))
+    tenors = [dict(t) for t in db.get_extension_policy_tenors(id)]
+    return render_template("extension_policy_detail.html", policy=dict(policy), tenors=tenors)
+
+
+@app.route("/settings/extension-policies/<int:id>/edit", methods=["POST"])
+def ext_policy_edit(id):
+    data = request.get_json(silent=True) or {}
+    ten  = data.get("ten_chinh_sach", "").strip()
+    pct  = data.get("pct_the_chap", 0)
+    try:
+        pct = float(pct)
+    except (ValueError, TypeError):
+        pct = 0.0
+    db.update_extension_policy(id, ten, pct)
+    return jsonify({"success": True})
+
+
+@app.route("/settings/extension-policies/<int:id>/activate", methods=["POST"])
+def ext_policy_activate(id):
+    db.update_extension_policy_status(id, "active")
+    return jsonify({"success": True})
+
+
+@app.route("/settings/extension-policies/<int:id>/close", methods=["POST"])
+def ext_policy_close(id):
+    db.update_extension_policy_status(id, "closed")
+    return jsonify({"success": True})
+
+
+@app.route("/settings/extension-policies/<int:id>/delete", methods=["POST"])
+def ext_policy_delete(id):
+    db.delete_extension_policy(id)
+    flash("Đã xóa chính sách gia hạn", "success")
+    return redirect(url_for("ext_policies_page"))
+
+
+@app.route("/settings/extension-policies/<int:id>/tenors", methods=["POST"])
+def ext_policy_tenor_add(id):
+    data    = request.get_json(silent=True) or {}
+    ky_han  = data.get("ky_han", 0)
+    loi_tuc = data.get("loi_tuc", 0)
+    try:
+        ky_han  = int(ky_han)
+        loi_tuc = float(loi_tuc)
+    except (ValueError, TypeError):
+        return jsonify({"error": "Giá trị không hợp lệ"}), 400
+    if ky_han <= 0:
+        return jsonify({"error": "Kỳ hạn phải lớn hơn 0"}), 400
+    tid   = db.add_extension_policy_tenor(id, ky_han, loi_tuc)
+    tenor = next((dict(t) for t in db.get_extension_policy_tenors(id) if t["id"] == tid), {})
+    return jsonify({"success": True, "tenor": tenor})
+
+
+@app.route("/settings/extension-policies/<int:id>/tenors/<int:tid>/edit", methods=["POST"])
+def ext_policy_tenor_edit(id, tid):
+    data    = request.get_json(silent=True) or {}
+    ky_han  = data.get("ky_han", 0)
+    loi_tuc = data.get("loi_tuc", 0)
+    try:
+        ky_han  = int(ky_han)
+        loi_tuc = float(loi_tuc)
+    except (ValueError, TypeError):
+        return jsonify({"error": "Giá trị không hợp lệ"}), 400
+    db.update_extension_policy_tenor(tid, ky_han, loi_tuc)
+    return jsonify({"success": True})
+
+
+@app.route("/settings/extension-policies/<int:id>/tenors/<int:tid>/delete", methods=["POST"])
+def ext_policy_tenor_delete(id, tid):
+    db.delete_extension_policy_tenor(tid)
+    return jsonify({"success": True})
+
+
 # ── Bond Lots (Lô Trái Phiếu) ───────────────────────────────────────────────
 
 @app.route("/bond-lots")
@@ -999,6 +1228,17 @@ def api_policy_tenors_get(id):
     return jsonify([dict(r) for r in db.get_policy_tenors(id)])
 
 
+@app.route("/api/active-extension-policies")
+def api_active_extension_policies():
+    policies = [dict(r) for r in db.get_extension_policies()]
+    return jsonify([p for p in policies if p["status"] == "active"])
+
+
+@app.route("/api/extension-policies/<int:id>/tenors")
+def api_extension_policy_tenors_get(id):
+    return jsonify([dict(r) for r in db.get_extension_policy_tenors(id)])
+
+
 @app.route("/api/holidays")
 def api_holidays():
     return jsonify([r["ngay"] for r in db.get_holidays()])
@@ -1062,6 +1302,77 @@ def delete_template(id):
     db.delete_template(id)
     flash("Đã xóa mẫu hợp đồng", "success")
     return redirect(url_for("templates_page"))
+
+
+# ── Extension Templates (Mẫu gia hạn) ───────────────────────────────────────
+
+@app.route("/extension-templates")
+def ext_templates_page():
+    items = []
+    for t in db.get_extension_templates():
+        t = dict(t)
+        try:
+            t["loai_list"] = json.loads(t["loai_gia_han"]) if t["loai_gia_han"] else []
+        except ValueError:
+            t["loai_list"] = []
+        try:
+            t["kieu_list"] = json.loads(t["kieu_gia_han"]) if t["kieu_gia_han"] else []
+        except ValueError:
+            t["kieu_list"] = []
+        items.append(t)
+    return render_template("extension_templates.html", templates=items)
+
+
+@app.route("/extension-templates/upload", methods=["POST"])
+def upload_extension_template():
+    name          = request.form.get("name", "").strip()
+    code          = request.form.get("code", "").strip().upper()
+    loai_gia_han  = request.form.getlist("loai_gia_han")
+    kieu_gia_han  = request.form.getlist("kieu_gia_han")
+    f             = request.files.get("file")
+
+    if not name or not code or not loai_gia_han or not kieu_gia_han or not f:
+        flash("Vui lòng điền đầy đủ thông tin", "error")
+        return redirect(url_for("ext_templates_page"))
+
+    if not f.filename.lower().endswith(".docx"):
+        flash("Chỉ nhận file .docx", "error")
+        return redirect(url_for("ext_templates_page"))
+
+    if db.get_extension_template_by_code(code):
+        flash(f'Mã "{code}" đã tồn tại', "error")
+        return redirect(url_for("ext_templates_page"))
+
+    os.makedirs(EXT_TEMPLATES_DIR, exist_ok=True)
+    filename  = f"{code}_{uuid.uuid4().hex[:8]}.docx"
+    file_path = os.path.join(EXT_TEMPLATES_DIR, filename)
+    f.save(file_path)
+
+    db.add_extension_template(name=name, code=code, filename=f.filename, file_path=file_path,
+                              loai_gia_han=json.dumps(loai_gia_han, ensure_ascii=False),
+                              kieu_gia_han=json.dumps(kieu_gia_han, ensure_ascii=False))
+    flash(f'Đã thêm mẫu gia hạn "{name}" (mã: {code})', "success")
+    return redirect(url_for("ext_templates_page"))
+
+
+@app.route("/extension-templates/<int:id>/download")
+def download_extension_template(id):
+    tpl = db.get_extension_template(id)
+    if not tpl or not os.path.exists(tpl["file_path"]):
+        flash("File mẫu không tồn tại", "error")
+        return redirect(url_for("ext_templates_page"))
+    return send_file(tpl["file_path"], as_attachment=True,
+                     download_name=f"{tpl['code']}_{tpl['filename']}")
+
+
+@app.route("/extension-templates/<int:id>/delete", methods=["POST"])
+def delete_extension_template(id):
+    tpl = db.get_extension_template(id)
+    if tpl and os.path.exists(tpl["file_path"]):
+        os.remove(tpl["file_path"])
+    db.delete_extension_template(id)
+    flash("Đã xóa mẫu gia hạn", "success")
+    return redirect(url_for("ext_templates_page"))
 
 
 # ─────────────────────────────────────────────────────────────────────────────

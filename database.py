@@ -78,6 +78,23 @@ def init_db():
                 FOREIGN KEY (policy_id) REFERENCES policies(id)
             );
 
+            CREATE TABLE IF NOT EXISTS extension_policies (
+                id             INTEGER PRIMARY KEY AUTOINCREMENT,
+                ten_chinh_sach TEXT NOT NULL,
+                pct_the_chap   REAL DEFAULT 0,
+                status         TEXT DEFAULT 'draft',
+                created_at     DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS extension_policy_tenors (
+                id                  INTEGER PRIMARY KEY AUTOINCREMENT,
+                extension_policy_id INTEGER NOT NULL,
+                ky_han              INTEGER NOT NULL,
+                loi_tuc             REAL DEFAULT 0,
+                created_at          DATETIME DEFAULT CURRENT_TIMESTAMP,
+                FOREIGN KEY (extension_policy_id) REFERENCES extension_policies(id)
+            );
+
             CREATE TABLE IF NOT EXISTS settings (
                 key   TEXT PRIMARY KEY,
                 value TEXT NOT NULL
@@ -92,6 +109,17 @@ def init_db():
                 ngay_dh     TEXT,
                 don_gia     REAL DEFAULT 0,
                 created_at  DATETIME DEFAULT CURRENT_TIMESTAMP
+            );
+
+            CREATE TABLE IF NOT EXISTS extension_templates (
+                id            INTEGER PRIMARY KEY AUTOINCREMENT,
+                name          TEXT NOT NULL,
+                code          TEXT NOT NULL UNIQUE,
+                filename      TEXT NOT NULL,
+                file_path     TEXT NOT NULL,
+                loai_gia_han  TEXT NOT NULL DEFAULT '',
+                kieu_gia_han  TEXT NOT NULL DEFAULT '',
+                created_at    DATETIME DEFAULT CURRENT_TIMESTAMP
             );
 
             CREATE TABLE IF NOT EXISTS contracts (
@@ -118,6 +146,18 @@ def init_db():
             pass
         try:
             conn.execute("ALTER TABLE orders ADD COLUMN review_status TEXT DEFAULT 'chua_kiem_tra'")
+        except Exception:
+            pass
+        try:
+            conn.execute("ALTER TABLE orders ADD COLUMN extended_from_order_id INTEGER")
+        except Exception:
+            pass
+        try:
+            conn.execute("ALTER TABLE extension_templates ADD COLUMN loai_gia_han TEXT NOT NULL DEFAULT ''")
+        except Exception:
+            pass
+        try:
+            conn.execute("ALTER TABLE extension_templates ADD COLUMN kieu_gia_han TEXT NOT NULL DEFAULT ''")
         except Exception:
             pass
         # Khởi tạo sequence counter nếu chưa có
@@ -158,6 +198,65 @@ def add_template(name, code, filename, file_path):
 def delete_template(id):
     with get_db() as conn:
         conn.execute("DELETE FROM templates WHERE id = ?", (id,))
+
+
+# ── Extension Templates (Mẫu gia hạn) ──
+
+def get_extension_templates():
+    with get_db() as conn:
+        return conn.execute(
+            "SELECT * FROM extension_templates ORDER BY created_at DESC"
+        ).fetchall()
+
+
+def get_extension_template(id):
+    with get_db() as conn:
+        return conn.execute(
+            "SELECT * FROM extension_templates WHERE id = ?", (id,)
+        ).fetchone()
+
+
+def get_extension_template_by_code(code):
+    with get_db() as conn:
+        return conn.execute(
+            "SELECT * FROM extension_templates WHERE code = ?", (code,)
+        ).fetchone()
+
+
+def add_extension_template(name, code, filename, file_path, loai_gia_han, kieu_gia_han):
+    with get_db() as conn:
+        conn.execute(
+            """INSERT INTO extension_templates
+               (name, code, filename, file_path, loai_gia_han, kieu_gia_han, created_at)
+               VALUES (?,?,?,?,?,?,?)""",
+            (name, code, filename, file_path, loai_gia_han, kieu_gia_han, _now())
+        )
+
+
+def get_extension_templates_for(loai_gia_han, kieu_gia_han):
+    """loai_gia_han/kieu_gia_han của template lưu dạng JSON array (1 mẫu áp dụng cho nhiều lựa chọn)."""
+    with get_db() as conn:
+        rows = conn.execute(
+            "SELECT * FROM extension_templates ORDER BY created_at DESC"
+        ).fetchall()
+    result = []
+    for r in rows:
+        try:
+            loai_list = _json.loads(r["loai_gia_han"]) if r["loai_gia_han"] else []
+        except (ValueError, TypeError):
+            loai_list = []
+        try:
+            kieu_list = _json.loads(r["kieu_gia_han"]) if r["kieu_gia_han"] else []
+        except (ValueError, TypeError):
+            kieu_list = []
+        if loai_gia_han in loai_list and kieu_gia_han in kieu_list:
+            result.append(r)
+    return result
+
+
+def delete_extension_template(id):
+    with get_db() as conn:
+        conn.execute("DELETE FROM extension_templates WHERE id = ?", (id,))
 
 
 # ── Contracts ──
@@ -322,10 +421,49 @@ def check_duplicate_so_hd(hdvv="", hdtc="", exclude_id=None):
     return hdvv_dup, hdtc_dup
 
 
-def add_order(data_json):
+def add_order(data_json, extended_from_order_id=None):
     with get_db() as conn:
-        cur = conn.execute("INSERT INTO orders (data, created_at) VALUES (?,?)", (data_json, _now()))
+        cur = conn.execute(
+            "INSERT INTO orders (data, created_at, extended_from_order_id) VALUES (?,?,?)",
+            (data_json, _now(), extended_from_order_id)
+        )
         return cur.lastrowid
+
+
+def get_children_orders(order_id):
+    with get_db() as conn:
+        return conn.execute(
+            "SELECT * FROM orders WHERE extended_from_order_id = ? ORDER BY created_at",
+            (order_id,)
+        ).fetchall()
+
+
+def get_order_chain_depth(order_id):
+    """Số lần lệnh này đã được gia hạn từ gốc (gốc = 0)."""
+    depth = 0
+    with get_db() as conn:
+        current = order_id
+        while True:
+            row = conn.execute(
+                "SELECT extended_from_order_id FROM orders WHERE id = ?", (current,)
+            ).fetchone()
+            if not row or not row[0]:
+                break
+            depth += 1
+            current = row[0]
+    return depth
+
+
+def get_root_order_id(order_id):
+    with get_db() as conn:
+        current = order_id
+        while True:
+            row = conn.execute(
+                "SELECT extended_from_order_id FROM orders WHERE id = ?", (current,)
+            ).fetchone()
+            if not row or not row[0]:
+                return current
+            current = row[0]
 
 
 def update_order(id, data_json, status=None):
@@ -617,6 +755,67 @@ def update_policy_tenor(id, ky_han, loi_tuc):
 def delete_policy_tenor(id):
     with get_db() as conn:
         conn.execute("DELETE FROM policy_tenors WHERE id=?", (id,))
+
+
+# ── Extension Policies (Chính sách gia hạn) ──
+
+def get_extension_policies():
+    with get_db() as conn:
+        return conn.execute("SELECT * FROM extension_policies ORDER BY created_at DESC").fetchall()
+
+def get_extension_policy(id):
+    with get_db() as conn:
+        return conn.execute("SELECT * FROM extension_policies WHERE id=?", (id,)).fetchone()
+
+def add_extension_policy(ten_chinh_sach, pct_the_chap):
+    with get_db() as conn:
+        cur = conn.execute(
+            "INSERT INTO extension_policies (ten_chinh_sach, pct_the_chap) VALUES (?,?)",
+            (ten_chinh_sach, pct_the_chap)
+        )
+        return cur.lastrowid
+
+def update_extension_policy(id, ten_chinh_sach, pct_the_chap):
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE extension_policies SET ten_chinh_sach=?, pct_the_chap=? WHERE id=?",
+            (ten_chinh_sach, pct_the_chap, id)
+        )
+
+def update_extension_policy_status(id, status):
+    with get_db() as conn:
+        conn.execute("UPDATE extension_policies SET status=? WHERE id=?", (status, id))
+
+def delete_extension_policy(id):
+    with get_db() as conn:
+        conn.execute("DELETE FROM extension_policy_tenors WHERE extension_policy_id=?", (id,))
+        conn.execute("DELETE FROM extension_policies WHERE id=?", (id,))
+
+def get_extension_policy_tenors(extension_policy_id):
+    with get_db() as conn:
+        return conn.execute(
+            "SELECT * FROM extension_policy_tenors WHERE extension_policy_id=? ORDER BY ky_han ASC",
+            (extension_policy_id,)
+        ).fetchall()
+
+def add_extension_policy_tenor(extension_policy_id, ky_han, loi_tuc):
+    with get_db() as conn:
+        cur = conn.execute(
+            "INSERT INTO extension_policy_tenors (extension_policy_id, ky_han, loi_tuc) VALUES (?,?,?)",
+            (extension_policy_id, ky_han, loi_tuc)
+        )
+        return cur.lastrowid
+
+def update_extension_policy_tenor(id, ky_han, loi_tuc):
+    with get_db() as conn:
+        conn.execute(
+            "UPDATE extension_policy_tenors SET ky_han=?, loi_tuc=? WHERE id=?",
+            (ky_han, loi_tuc, id)
+        )
+
+def delete_extension_policy_tenor(id):
+    with get_db() as conn:
+        conn.execute("DELETE FROM extension_policy_tenors WHERE id=?", (id,))
 
 
 # ── Bond Lots (Lô Trái Phiếu) ──

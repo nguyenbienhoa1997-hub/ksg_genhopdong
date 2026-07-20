@@ -1,0 +1,467 @@
+{% extends "layout.html" %}
+{% block title %}Gia hạn lệnh #{{ parent.id }}{% endblock %}
+
+{% block content %}
+<a href="{{ url_for('order_detail', id=parent.id) }}" class="back-link">← Lệnh #{{ parent.id }}</a>
+
+<div class="page-header">
+  <h1 class="page-title">Gia hạn lệnh #{{ parent.id }}</h1>
+</div>
+
+<div style="background:var(--accent-lt);border:1px solid #bfdbfe;border-radius:8px;
+            padding:12px 16px;margin-bottom:24px;font-size:13px;color:#1e40af;">
+  🔄 Gia hạn lần {{ depth }} — Kỳ hạn cũ: <strong>{{ data.get('Kỳ hạn cũ','') }} tháng</strong>
+  — Đáo hạn cũ: <strong>{{ data.get('Ngày đáo hạn cũ','') }}</strong>
+  — Lãi suất cũ: <strong>{{ data.get('Lãi suất cũ','') }}%/năm</strong>
+</div>
+
+<form id="order-form" method="POST" action="{{ url_for('order_extend', id=parent.id) }}">
+  <div style="display:grid;gap:20px;max-width:900px;">
+
+    <!-- Thông tin khách hàng (giữ nguyên) -->
+    <div class="section">
+      <div class="section-title">Thông tin khách hàng (giữ nguyên từ lệnh gốc)</div>
+      <div class="detail-grid">
+        <div>
+          <div class="detail-label">Tên khách hàng</div>
+          <div class="detail-value"><strong>{{ data.get('Tên khách hàng','') }}</strong></div>
+        </div>
+        <div>
+          <div class="detail-label">CMND/CCCD</div>
+          <div class="detail-value">{{ data.get('Thông tin CMND/CCCD của KH','') }}</div>
+        </div>
+        <div>
+          <div class="detail-label">Số điện thoại</div>
+          <div class="detail-value">{{ data.get('Số điện thoại','') }}</div>
+        </div>
+        <div>
+          <div class="detail-label">Tài khoản nhận tiền</div>
+          <div class="detail-value">{{ data.get('Tài khoản KH ','') }} — {{ data.get('Ngân hàng - chi nhánh','') }}</div>
+        </div>
+      </div>
+      {% for f in ["Tên khách hàng","Giới tính","Thông tin CMND/CCCD của KH","Ngày cấp","Nơi cấp",
+                    "Địa chỉ liên lạc","Số điện thoại","Ngày tháng năm Sinh","ĐỊA CHỈ EMAIL ",
+                    "Tài khoản KH ","Tên tài khoản KH","Ngân hàng - chi nhánh","SỐ TKCK","NƠI MỞ TKCK","Phí phong tỏa"] %}
+      <input type="hidden" name="{{ f }}" value="{{ data.get(f,'') }}">
+      {% endfor %}
+    </div>
+
+    <!-- Loại / Kiểu gia hạn -->
+    <div class="section">
+      <div class="section-title">Loại gia hạn</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
+        <div>
+          <label class="form-label">Loại gia hạn <span style="color:var(--danger);">*</span></label>
+          <select id="loai-gh-sel" name="Loại gia hạn" style="width:100%;" onchange="onLoaiGiaHanChange(this.value)">
+            <option value="">-- Chọn loại gia hạn --</option>
+            <option value="Không chuyển lô">Không chuyển lô</option>
+            <option value="Chuyển lô">Chuyển lô</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label">Kiểu gia hạn <span style="color:var(--danger);">*</span></label>
+          <select id="kieu-gh-sel" name="Kiểu gia hạn" style="width:100%;" onchange="onKieuGiaHanChange(this.value)">
+            <option value="">-- Chọn kiểu gia hạn --</option>
+            <option value="Gia hạn gốc">Gia hạn gốc</option>
+            <option value="Gia hạn gốc và lợi ích">Gia hạn gốc và lợi ích</option>
+          </select>
+        </div>
+      </div>
+    </div>
+
+    <!-- Lô trái phiếu -->
+    <div class="section">
+      <div class="section-title">Lô trái phiếu</div>
+      <div id="lo-readonly-block" class="detail-grid">
+        <div>
+          <div class="detail-label">Mã trái phiếu (Văn kiện)</div>
+          <div class="detail-value">{{ data.get('Mã trái phiếu (theo Văn kiện trái phiếu)','') }}</div>
+        </div>
+        <div>
+          <div class="detail-label">Tổ chức phát hành</div>
+          <div class="detail-value">{{ data.get('TỔ CHỨC PH','') }}</div>
+        </div>
+        <div>
+          <div class="detail-label">Ngày phát hành</div>
+          <div class="detail-value">{{ data.get('NGÀY PHÁT HÀNH ','') }}</div>
+        </div>
+        <div>
+          <div class="detail-label">Ngày đáo hạn (TP)</div>
+          <div class="detail-value">{{ data.get('NGÀY ĐÁO HẠN ','') }}</div>
+        </div>
+      </div>
+      <div id="lo-select-block" class="hidden">
+        <label class="form-label">Chọn lô trái phiếu mới <span style="color:var(--danger);">*</span></label>
+        <select id="lot-select" style="width:100%;" onchange="onLotSelect(this.value)">
+          <option value="">-- Chọn lô trái phiếu --</option>
+        </select>
+        <div id="lot-sub" style="display:none;font-size:12px;color:var(--text-2);margin-top:4px;
+                                  background:var(--sidebar-bg);padding:6px 10px;border-radius:6px;"></div>
+      </div>
+      {% for f in ["Mã trái phiếu (theo Văn kiện trái phiếu)","Mã trái phiếu (do VSDC cấp)",
+                    "TỔ CHỨC PH","NGÀY PHÁT HÀNH ","NGÀY ĐÁO HẠN "] %}
+      <input type="hidden" name="{{ f }}" value="{{ data.get(f,'') }}">
+      {% endfor %}
+    </div>
+
+    <!-- Gia hạn -->
+    <div class="section">
+      <div class="section-title">Gia hạn</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
+        <div style="grid-column:1/-1;">
+          <label class="form-label">Chính sách gia hạn <span style="color:var(--danger);">*</span></label>
+          <select id="cs-sel" style="width:100%;" onchange="onPolicyChange(this.value)">
+            <option value="">-- Chọn chính sách --</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label">Kỳ hạn mới <span style="color:var(--danger);">*</span></label>
+          <select id="kh-sel" style="width:100%;" onchange="onTenorChange(this)" disabled>
+            <option value="">-- Chọn sau khi chọn chính sách --</option>
+          </select>
+        </div>
+        <div>
+          <label class="form-label">Lãi suất mới (%/năm)</label>
+          <input type="text" id="ls-field" name="Lãi suất" value="{{ data.get('Lãi suất','') }}"
+                 style="width:100%;background:var(--accent-lt);" readonly placeholder="Tự động điền">
+        </div>
+        <div>
+          <label class="form-label">Ngày bắt đầu kỳ mới</label>
+          <input type="text" value="{{ data.get('Ngày giao dịch','') }}" style="width:100%;" disabled>
+          <div style="font-size:12px;color:var(--text-3);margin-top:4px;">= Ngày đáo hạn của kỳ trước, không sửa được</div>
+        </div>
+        <div>
+          <label class="form-label">Ngày đáo hạn mới</label>
+          <input type="text" id="ndh-display" value="" style="width:100%;" disabled placeholder="Tự động tính">
+          <div id="ndh-error" style="font-size:12px;color:var(--danger);margin-top:4px;"></div>
+        </div>
+        <div>
+          <label class="form-label">Số tiền đầu tư <span style="color:var(--danger);">*</span></label>
+          <input type="text" id="st-field" name="Giá trị hợp đồng trái phiếu"
+                 value="{{ data.get('Giá trị hợp đồng trái phiếu','') }}"
+                 style="width:100%;" oninput="fmtMoneyInput(this); recalcAll()">
+        </div>
+        <div>
+          <label class="form-label">Số tiền thực nhận HĐ mới (dự kiến)</label>
+          <input type="text" id="tt-display" value="" style="width:100%;" disabled placeholder="Tự động tính">
+        </div>
+        <div>
+          <label class="form-label">Số tiền trả KH (dự kiến)</label>
+          <input type="text" id="tra-kh-display" value="" style="width:100%;" disabled placeholder="Tự động tính">
+          <input type="hidden" name="Số tiền trả KH" id="h-tra-kh" value="">
+          <input type="hidden" name="Số tiền trả KH bằng chữ" id="h-tra-kh-stbc" value="">
+          <div style="font-size:12px;color:var(--text-3);margin-top:4px;">= Lãi kỳ trước không đưa vào kỳ mới, trả lại khách</div>
+        </div>
+        <div style="grid-column:1/-1;">
+          <label class="form-label">Số HĐ vay vốn mới</label>
+          <input type="text" value="{{ data.get('Số Hợp đồng vay vốn','') }}"
+                 style="width:100%;background:var(--sidebar-bg);" disabled>
+        </div>
+        <div style="grid-column:1/-1;">
+          <label class="form-label">Số HĐ thế chấp mới</label>
+          <input type="text" value="{{ data.get('Số HĐ Thế chấp','') }}"
+                 style="width:100%;background:var(--sidebar-bg);" disabled>
+        </div>
+      </div>
+
+      <!-- Hidden: giá trị thật sự được submit -->
+      <input type="hidden" name="Số Hợp đồng vay vốn" value="{{ data.get('Số Hợp đồng vay vốn','') }}">
+      <input type="hidden" name="Số HĐ Thế chấp"      value="{{ data.get('Số HĐ Thế chấp','') }}">
+      <input type="hidden" name="Lãi trong hạn" id="h-lai-trong-han" value="">
+      <input type="hidden" name="Ngày giao dịch"      value="{{ data.get('Ngày giao dịch','') }}">
+      <input type="hidden" name="Ngày bằng chữ"       value="{{ data.get('Ngày bằng chữ','') }}">
+      <input type="hidden" name="Kỳ hạn theo tháng"   id="h-kyhan" value="">
+      <input type="hidden" name="Ngày đáo hạn HĐ"     id="h-ndh" value="">
+      <input type="hidden" name="Số ngày cho vay"     id="h-songay" value="">
+      <input type="hidden" name="Số tiền bằng chữ"    id="h-stbc" value="">
+      <input type="hidden" name="Số tiền thực nhận"   id="h-tien-tn" value="">
+      <input type="hidden" name="Số lượng trái phiếu thế chấp" id="h-sl-tp" value="">
+      <input type="hidden" name="_gia_han_chinh_sach_id" id="h-policy-id" value="">
+
+      <!-- Snapshot kỳ cũ (đọc cho mẫu Phụ lục gia hạn) -->
+      <input type="hidden" name="Kỳ hạn cũ"         value="{{ data.get('Kỳ hạn cũ','') }}">
+      <input type="hidden" name="Ngày đáo hạn cũ"   value="{{ data.get('Ngày đáo hạn cũ','') }}">
+      <input type="hidden" name="Lãi suất cũ"       value="{{ data.get('Lãi suất cũ','') }}">
+      <input type="hidden" name="Ngày giao dịch cũ" value="{{ data.get('Ngày giao dịch cũ','') }}">
+      <input type="hidden" name="Lần gia hạn"       value="{{ data.get('Lần gia hạn','') }}">
+      <input type="hidden" name="Số HĐ vay vốn cũ"    value="{{ data.get('Số HĐ vay vốn cũ','') }}">
+      <input type="hidden" name="Số HĐ Thế chấp cũ"   value="{{ data.get('Số HĐ Thế chấp cũ','') }}">
+      <input type="hidden" name="Giá trị hợp đồng cũ" value="{{ data.get('Giá trị hợp đồng cũ','') }}">
+      <input type="hidden" name="Số tiền thực nhận cũ" value="{{ data.get('Số tiền thực nhận cũ','') }}">
+      <input type="hidden" name="Số tiền bằng chữ cũ" id="h-stbc-cu" value="">
+      <input type="hidden" name="Số tiền lãi HĐ cũ" value="{{ data.get('Số tiền lãi HĐ cũ','') }}">
+      <input type="hidden" name="Số tiền thực nhận bằng chữ cũ" id="h-sttn-stbc-cu" value="">
+    </div>
+
+    <!-- Thông tin gửi hợp đồng -->
+    <div class="section">
+      <div class="section-title">Thông tin gửi hợp đồng</div>
+      <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;">
+        <div style="grid-column:1/-1;">
+          <label class="form-label">Người nhận hợp đồng</label>
+          <input type="text" name="Người nhận hợp đồng" value="{{ data.get('Người nhận hợp đồng','') }}" style="width:100%;">
+        </div>
+        <div>
+          <label class="form-label">SĐT người nhận</label>
+          <input type="text" name="SĐT người nhận" value="{{ data.get('SĐT người nhận','') }}" style="width:100%;">
+        </div>
+        <div>
+          <label class="form-label">Địa chỉ người nhận</label>
+          <input type="text" name="Địa chỉ người nhận" value="{{ data.get('Địa chỉ người nhận','') }}" style="width:100%;">
+        </div>
+      </div>
+    </div>
+
+  </div>
+
+  <div style="max-width:900px;display:flex;justify-content:flex-end;gap:8px;margin-top:20px;">
+    <a href="{{ url_for('order_detail', id=parent.id) }}" class="btn btn-ghost">Hủy</a>
+    <button type="button" class="btn btn-primary" onclick="submitExtend()">✅ Xác nhận gia hạn</button>
+  </div>
+</form>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let allLots      = [];
+let selectedLot   = null;
+let originalLot   = null;
+let holidays      = [];
+let activePolicies = [];
+let currentTenors  = [];
+let selectedPct    = 0;
+
+const OLD_GOC        = "{{ parent_data.get('Giá trị hợp đồng trái phiếu','')|e }}";
+const OLD_THUC_NHAN  = "{{ parent_data.get('Số tiền thực nhận','')|e }}";
+const ORIGINAL_LOT_FIELDS = {
+  'Mã trái phiếu (theo Văn kiện trái phiếu)': "{{ data.get('Mã trái phiếu (theo Văn kiện trái phiếu)','')|e }}",
+  'Mã trái phiếu (do VSDC cấp)':              "{{ data.get('Mã trái phiếu (do VSDC cấp)','')|e }}",
+  'TỔ CHỨC PH':                                "{{ data.get('TỔ CHỨC PH','')|e }}",
+  'NGÀY PHÁT HÀNH ':                           "{{ data.get('NGÀY PHÁT HÀNH ','')|e }}",
+  'NGÀY ĐÁO HẠN ':                             "{{ data.get('NGÀY ĐÁO HẠN ','')|e }}",
+};
+
+async function loadLots() {
+  const r = await fetch('/api/bond-lots');
+  allLots = await r.json();
+  const maVk = "{{ data.get('Mã trái phiếu (theo Văn kiện trái phiếu)','')|e }}";
+  originalLot = allLots.find(l => l.ma_vk === maVk) || null;
+  selectedLot = originalLot;
+  const sel = document.getElementById('lot-select');
+  if (sel) {
+    allLots.forEach(l => {
+      const label = `${l.ma_vk}${l.ma_vsdc ? ' / ' + l.ma_vsdc : ''}${l.to_chuc_ph ? '  —  ' + l.to_chuc_ph : ''}`;
+      sel.add(new Option(label, l.id));
+    });
+  }
+}
+
+function setLotFields(fields) {
+  Object.entries(fields).forEach(([name, val]) => {
+    const el = document.querySelector(`[name="${CSS.escape(name)}"]`);
+    if (el) el.value = val || '';
+  });
+}
+
+function onLoaiGiaHanChange(val) {
+  const roBlock  = document.getElementById('lo-readonly-block');
+  const selBlock = document.getElementById('lo-select-block');
+  if (val === 'Chuyển lô') {
+    roBlock.classList.add('hidden');
+    selBlock.classList.remove('hidden');
+    selectedLot = null;
+  } else {
+    roBlock.classList.remove('hidden');
+    selBlock.classList.add('hidden');
+    document.getElementById('lot-select').value = '';
+    document.getElementById('lot-sub').style.display = 'none';
+    setLotFields(ORIGINAL_LOT_FIELDS);
+    selectedLot = originalLot;
+  }
+  recalcNewMaturity();
+}
+
+function onLotSelect(id) {
+  const lot = allLots.find(l => l.id === parseInt(id));
+  if (!lot) { selectedLot = null; document.getElementById('lot-sub').style.display = 'none'; recalcNewMaturity(); return; }
+  selectedLot = lot;
+  const sub = document.getElementById('lot-sub');
+  sub.textContent = [
+    lot.to_chuc_ph,
+    lot.ngay_ph ? 'Phát hành: ' + lot.ngay_ph : '',
+    lot.ngay_dh ? 'Đáo hạn: ' + lot.ngay_dh : '',
+  ].filter(Boolean).join('  |  ');
+  sub.style.display = 'block';
+  setLotFields({
+    'Mã trái phiếu (theo Văn kiện trái phiếu)': lot.ma_vk,
+    'Mã trái phiếu (do VSDC cấp)':              lot.ma_vsdc,
+    'TỔ CHỨC PH':                                lot.to_chuc_ph,
+    'NGÀY PHÁT HÀNH ':                           lot.ngay_ph,
+    'NGÀY ĐÁO HẠN ':                             lot.ngay_dh,
+  });
+  recalcNewMaturity();
+}
+
+function onKieuGiaHanChange(val) {
+  const stField = document.getElementById('st-field');
+  if (val === 'Gia hạn gốc') stField.value = OLD_GOC;
+  else if (val === 'Gia hạn gốc và lợi ích') stField.value = OLD_THUC_NHAN;
+  fmtMoneyInput(stField);
+  recalcAll();
+}
+
+async function loadHolidays() {
+  const r = await fetch('/api/holidays');
+  holidays = await r.json();
+}
+
+async function loadPolicies() {
+  const r = await fetch('/api/active-extension-policies');
+  activePolicies = await r.json();
+  const sel = document.getElementById('cs-sel');
+  activePolicies.forEach(p => sel.add(new Option(p.ten_chinh_sach, p.id)));
+}
+
+async function onPolicyChange(pid) {
+  const khSel = document.getElementById('kh-sel');
+  khSel.innerHTML = '<option value="">-- Chọn kỳ hạn --</option>';
+  khSel.disabled = true;
+  document.getElementById('ls-field').value = '';
+  document.getElementById('h-kyhan').value  = '';
+  selectedPct = 0;
+  document.getElementById('h-policy-id').value = pid || '';
+  recalcNewMaturity();
+  if (!pid) return;
+  const policy = activePolicies.find(p => p.id == pid);
+  selectedPct = policy ? (policy.pct_the_chap || 0) : 0;
+  const r = await fetch(`/api/extension-policies/${pid}/tenors`);
+  currentTenors = await r.json();
+  currentTenors.forEach(t => khSel.add(new Option(`${t.ky_han} tháng  —  ${t.loi_tuc}%/năm`, t.id)));
+  khSel.disabled = false;
+}
+
+function onTenorChange(sel) {
+  const tenor = currentTenors.find(t => t.id === parseInt(sel.value));
+  if (!tenor) {
+    document.getElementById('ls-field').value = '';
+    document.getElementById('h-kyhan').value  = '';
+  } else {
+    document.getElementById('ls-field').value = String(tenor.loi_tuc).replace('.', ',');
+    document.getElementById('h-kyhan').value  = tenor.ky_han;
+  }
+  recalcNewMaturity();
+}
+
+function parseDMY(str) {
+  const m = (str || '').match(/^(\d{2})\/(\d{2})\/(\d{4})$/);
+  if (!m) return null;
+  return new Date(parseInt(m[3]), parseInt(m[2]) - 1, parseInt(m[1]));
+}
+
+function recalcNewMaturity() {
+  const ky       = parseInt(document.getElementById('h-kyhan').value || '0');
+  const ngdStr   = "{{ data.get('Ngày giao dịch','')|e }}";
+  const investDate = parseDMY(ngdStr);
+  const errEl    = document.getElementById('ndh-error');
+  errEl.textContent = '';
+
+  if (!ky || !investDate) {
+    document.getElementById('h-ndh').value    = '';
+    document.getElementById('h-songay').value = '';
+    document.getElementById('ndh-display').value = '';
+    recalcAll();
+    return;
+  }
+
+  const maturity = nextWorkdayOnOrAfter(edate(investDate, ky), holidays);
+
+  // Ngày đáo hạn HĐ mới không được >= ngày đáo hạn lô TP
+  const lotMaturity = parseDMY(selectedLot?.ngay_dh);
+  if (lotMaturity && maturity >= lotMaturity) {
+    document.getElementById('h-ndh').value    = '';
+    document.getElementById('h-songay').value = '';
+    document.getElementById('ndh-display').value = '';
+    errEl.textContent = `⚠️ Kỳ hạn này khiến ngày đáo hạn vượt quá ngày đáo hạn lô TP (${selectedLot.ngay_dh}). Vui lòng chọn kỳ hạn ngắn hơn.`;
+    recalcAll();
+    return;
+  }
+
+  const dd2 = String(maturity.getDate()).padStart(2, '0');
+  const mm2 = String(maturity.getMonth() + 1).padStart(2, '0');
+  const ndhStr = `${dd2}/${mm2}/${maturity.getFullYear()}`;
+  document.getElementById('h-ndh').value = ndhStr;
+  document.getElementById('ndh-display').value = ndhStr;
+  const diffDays = Math.round((maturity - investDate) / 86400000);
+  document.getElementById('h-songay').value = diffDays;
+  recalcAll();
+}
+
+function recalcAll() {
+  const rawAmount = (document.getElementById('st-field')?.value || '').replace(/[.,\s]/g, '');
+  const amount    = parseInt(rawAmount) || 0;
+  const laiSuat   = parseFloat((document.getElementById('ls-field')?.value || '').replace(',', '.')) || 0;
+  const songay    = parseInt(document.getElementById('h-songay')?.value) || 0;
+  const donGia    = (selectedLot?.don_gia || 0);
+
+  if (amount > 0 && selectedPct > 0 && donGia > 0) {
+    document.getElementById('h-sl-tp').value = Math.ceil(amount * selectedPct / 100 / donGia).toLocaleString('vi-VN');
+  } else {
+    document.getElementById('h-sl-tp').value = '';
+  }
+
+  let tienTN = '';
+  if (amount > 0 && laiSuat > 0 && songay > 0) {
+    tienTN = Math.round(amount + amount * laiSuat / 100 * songay / 365);
+    document.getElementById('h-tien-tn').value = tienTN.toLocaleString('de-DE');
+    document.getElementById('tt-display').value = tienTN.toLocaleString('de-DE') + ' đồng';
+    document.getElementById('h-lai-trong-han').value = (tienTN - amount).toLocaleString('de-DE');
+  } else {
+    document.getElementById('h-tien-tn').value = '';
+    document.getElementById('tt-display').value = '';
+    document.getElementById('h-lai-trong-han').value = '';
+  }
+
+  // Số tiền trả KH = phần lãi kỳ trước không đưa vào kỳ mới (thực nhận cũ - số tiền đầu tư mới)
+  const oldThucNhan = parseInt((OLD_THUC_NHAN || '').replace(/[.,\s]/g, '')) || 0;
+  const traKhEl      = document.getElementById('tra-kh-display');
+  const hTraKhEl     = document.getElementById('h-tra-kh');
+  const hTraKhStbcEl = document.getElementById('h-tra-kh-stbc');
+  if (oldThucNhan > 0 && amount > 0) {
+    const traKH = Math.max(0, oldThucNhan - amount);
+    traKhEl.value      = traKH.toLocaleString('de-DE') + ' đồng';
+    hTraKhEl.value     = traKH.toLocaleString('de-DE');
+    hTraKhStbcEl.value = traKH > 0 ? numToViWords(traKH) : '';
+  } else {
+    traKhEl.value      = '';
+    hTraKhEl.value     = '';
+    hTraKhStbcEl.value = '';
+  }
+
+  document.getElementById('h-stbc').value = amount > 0 ? numToViWords(amount) : '';
+}
+
+function submitExtend() {
+  const errs = [];
+  const loaiGh = document.getElementById('loai-gh-sel').value;
+  if (!loaiGh) errs.push('Chưa chọn Loại gia hạn');
+  if (!document.getElementById('kieu-gh-sel').value) errs.push('Chưa chọn Kiểu gia hạn');
+  if (loaiGh === 'Chuyển lô' && !document.getElementById('lot-select').value) errs.push('Chưa chọn Lô trái phiếu mới');
+  if (!document.getElementById('cs-sel').value) errs.push('Chưa chọn Chính sách gia hạn');
+  if (!document.getElementById('kh-sel').value) errs.push('Chưa chọn Kỳ hạn mới');
+  if (!document.getElementById('st-field').value.trim()) errs.push('Chưa nhập Số tiền đầu tư');
+  const ndhErr = document.getElementById('ndh-error').textContent;
+  if (ndhErr) errs.push(ndhErr);
+  else if (!document.getElementById('h-ndh').value) errs.push('Chưa tính được Ngày đáo hạn mới');
+  if (errs.length) { alert('Vui lòng điền đầy đủ thông tin:\n\n' + errs.join('\n')); return; }
+  document.getElementById('order-form').submit();
+}
+
+(async function init() {
+  await Promise.all([loadLots(), loadHolidays(), loadPolicies()]);
+  const oldGocAmount = parseInt((OLD_GOC || '').replace(/[.,\s]/g, '')) || 0;
+  document.getElementById('h-stbc-cu').value = oldGocAmount > 0 ? numToViWords(oldGocAmount) : '';
+  const oldThucNhanAmount = parseInt((OLD_THUC_NHAN || '').replace(/[.,\s]/g, '')) || 0;
+  document.getElementById('h-sttn-stbc-cu').value = oldThucNhanAmount > 0 ? numToViWords(oldThucNhanAmount) : '';
+})();
+</script>
+{% endblock %}
