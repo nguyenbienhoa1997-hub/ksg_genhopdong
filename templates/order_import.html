@@ -1,0 +1,219 @@
+{% extends "layout.html" %}
+{% block title %}Import lệnh{% endblock %}
+
+{% block content %}
+<a href="{{ url_for('orders_page') }}" class="back-link">← Danh sách lệnh</a>
+
+{% if preview %}
+<!-- ══ MÀN HÌNH KIỂM TRA ══ -->
+<div class="page-header">
+  <h1 class="page-title">Kiểm tra trước khi import</h1>
+  <div style="display:flex;gap:8px;flex-wrap:wrap;">
+    <a href="{{ url_for('orders_import_page') }}" class="btn btn-ghost">← Upload lại</a>
+    <form method="POST" action="{{ url_for('orders_import_preview_download') }}" style="display:inline;">
+      <input type="hidden" name="preview_payload" value="{{ preview_payload }}">
+      <button type="submit" class="btn btn-ghost">⬇ Tải dữ liệu kiểm tra</button>
+    </form>
+    {% if error_rows|length == 0 and dup_rows|length == 0 and ok_rows %}
+    <form method="POST" action="{{ url_for('orders_import_confirm') }}">
+      <input type="hidden" name="payload" value="{{ payload }}">
+      <button type="submit" class="btn btn-primary"
+              onclick="this.disabled=true;this.textContent='⏳ Đang import...';this.form.submit();">
+        ✅ Xác nhận import {{ ok_rows|length }} lệnh
+      </button>
+    </form>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Tổng kết -->
+<div style="display:flex;gap:12px;margin-bottom:20px;flex-wrap:wrap;">
+  <div style="flex:1;min-width:140px;padding:16px 20px;border-radius:10px;
+              background:#dcfce7;border:1px solid #86efac;text-align:center;">
+    <div style="font-size:28px;font-weight:700;color:#15803d;">{{ ok_rows|length }}</div>
+    <div style="font-size:12px;color:#166534;font-weight:600;margin-top:2px;">✅ Hợp lệ</div>
+  </div>
+  <div style="flex:1;min-width:140px;padding:16px 20px;border-radius:10px;
+              background:#fef9c3;border:1px solid #fde047;text-align:center;">
+    <div style="font-size:28px;font-weight:700;color:#854d0e;">{{ dup_rows|length }}</div>
+    <div style="font-size:12px;color:#713f12;font-weight:600;margin-top:2px;">⚠️ Trùng số HĐ</div>
+  </div>
+  <div style="flex:1;min-width:140px;padding:16px 20px;border-radius:10px;
+              background:#fef2f2;border:1px solid #fca5a5;text-align:center;">
+    <div style="font-size:28px;font-weight:700;color:#dc2626;">{{ error_rows|length }}</div>
+    <div style="font-size:12px;color:#991b1b;font-weight:600;margin-top:2px;">❌ Lỗi / thiếu thông tin</div>
+  </div>
+</div>
+
+<!-- Bảng chi tiết -->
+<div class="section">
+  <div class="table-wrap" style="overflow-x:auto;">
+    <table>
+      <thead>
+        <tr>
+          <th style="width:50px;">Dòng</th>
+          <th style="width:80px;">Trạng thái</th>
+          <th>Tên khách hàng</th>
+          <th>Số HĐ vay vốn</th>
+          <th>Số HĐ thế chấp</th>
+          <th>Giá trị HĐ</th>
+          <th>Ngày GD</th>
+          <th>Ghi chú</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for r in rows %}
+        <tr style="
+          {% if r.status == 'ok' %}background:rgba(34,197,94,.06);
+          {% elif r.status == 'dup' %}background:rgba(234,179,8,.08);
+          {% else %}background:rgba(239,68,68,.06);
+          {% endif %}">
+          <td class="text-secondary" style="text-align:center;">{{ r.row }}</td>
+          <td style="text-align:center;">
+            {% if r.status == 'ok' %}
+              <span class="badge badge-green">✅ Hợp lệ</span>
+            {% elif r.status == 'dup' %}
+              <span class="badge badge-orange">⚠️ Trùng</span>
+            {% else %}
+              <span class="badge" style="background:#fef2f2;color:#dc2626;border:1px solid #fca5a5;">❌ Lỗi</span>
+            {% endif %}
+          </td>
+          <td><strong>{{ r.ten_kh }}</strong></td>
+          <td style="font-size:12px;color:var(--text-2);">{{ r.so_hdvv }}</td>
+          <td style="font-size:12px;color:var(--text-2);">{{ r.so_hdtc }}</td>
+          <td style="font-size:12px;">
+            {% if r.gia_tri %}
+              {{ "{:,.0f}".format(r.gia_tri|float) if r.gia_tri|float > 0 else r.gia_tri }}
+            {% endif %}
+          </td>
+          <td style="font-size:12px;">{{ r.ngay_gd }}</td>
+          <td style="font-size:12px;
+            {% if r.status == 'dup' %}color:#92400e;
+            {% elif r.status == 'error' %}color:#dc2626;
+            {% else %}color:var(--text-3);
+            {% endif %}">
+            {{ r.reason }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% if error_rows|length == 0 and dup_rows|length == 0 and ok_rows %}
+<div style="text-align:right;margin-top:16px;">
+  <form method="POST" action="{{ url_for('orders_import_confirm') }}">
+    <input type="hidden" name="payload" value="{{ payload }}">
+    <button type="submit" class="btn btn-primary" onclick="this.disabled=true;this.textContent='⏳ Đang import...';this.form.submit();">
+      ✅ Xác nhận import {{ ok_rows|length }} lệnh
+    </button>
+  </form>
+</div>
+{% else %}
+<div style="margin-top:16px;padding:14px 18px;background:#fef2f2;border:1px solid #fca5a5;
+            border-radius:8px;font-size:13px;color:#dc2626;">
+  {% if error_rows|length > 0 and dup_rows|length > 0 %}
+    ❌ File có <strong>{{ error_rows|length }} lỗi</strong> và <strong>{{ dup_rows|length }} trùng</strong> — vui lòng kiểm tra lại file rồi upload lại.
+  {% elif error_rows|length > 0 %}
+    ❌ File có <strong>{{ error_rows|length }} dòng lỗi</strong> — vui lòng kiểm tra lại file rồi upload lại.
+  {% elif dup_rows|length > 0 %}
+    ⚠️ File có <strong>{{ dup_rows|length }} lệnh trùng số HĐ</strong> — vui lòng kiểm tra lại rồi upload lại.
+  {% else %}
+    Không có lệnh hợp lệ nào để import.
+  {% endif %}
+  <div style="margin-top:10px;">
+    <a href="{{ url_for('orders_import_page') }}" class="btn btn-ghost" style="font-size:13px;">← Upload lại file</a>
+  </div>
+</div>
+{% endif %}
+
+{% else %}
+<!-- ══ MÀN HÌNH UPLOAD ══ -->
+<div class="page-header">
+  <h1 class="page-title">Import lệnh từ Excel</h1>
+</div>
+
+<div class="section">
+  <div class="section-title">Bước 1 — Tải file mẫu</div>
+  <p style="font-size:13px;color:var(--text-2);margin-bottom:14px;">
+    Tải file Excel mẫu, điền thông tin các lệnh, sau đó upload ở Bước 2.
+  </p>
+  <a href="{{ url_for('orders_import_template') }}" class="btn btn-ghost">
+    ⬇ Tải file mẫu <code style="font-size:11px;opacity:.7;">mau_import_lenh.xlsx</code>
+  </a>
+  <div style="margin-top:14px;padding:12px 16px;background:var(--sidebar-bg);border-radius:8px;
+              font-size:12px;color:var(--text-2);line-height:1.9;">
+    <strong>Lưu ý khi điền:</strong><br>
+    • Cột <span style="background:#C0392B;color:#fff;padding:1px 6px;border-radius:3px;font-size:11px;">ĐỎ</span> = bắt buộc &nbsp;|&nbsp;
+      Cột <span style="background:#1E3A5F;color:#fff;padding:1px 6px;border-radius:3px;font-size:11px;">XANH</span> = tùy chọn<br>
+    • Ngày: định dạng <strong>dd/mm/yyyy</strong> (vd: 27/07/2026)<br>
+    • Số tiền: không có dấu chấm phân cách (vd: 500000000)<br>
+    • Lãi suất: dùng dấu phẩy (vd: 7,3)<br>
+    • Dòng 1 là header — không xóa &nbsp;|&nbsp; Dòng 2 là ví dụ mẫu — có thể xóa
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<div class="section">
+  <div class="section-title">Bước 2 — Upload file đã điền</div>
+  <form method="POST" enctype="multipart/form-data" id="import-form"
+        action="{{ url_for('orders_import_page') }}">
+    <div id="drop-zone"
+         style="border:2px dashed var(--border);border-radius:12px;padding:52px 24px;
+                text-align:center;cursor:pointer;transition:all .2s;user-select:none;"
+         onclick="document.getElementById('file-input').click()"
+         ondragover="onDragOver(event)" ondragleave="onDragLeave(event)" ondrop="onDrop(event)">
+      <div style="font-size:40px;margin-bottom:10px;">📂</div>
+      <div style="font-weight:600;font-size:14px;margin-bottom:6px;">
+        Kéo thả file vào đây hoặc bấm để chọn
+      </div>
+      <div style="font-size:12px;color:var(--text-3);">Chỉ hỗ trợ file .xlsx</div>
+      <div id="file-name" style="margin-top:12px;font-size:13px;color:var(--accent);
+                                  font-weight:600;min-height:20px;"></div>
+    </div>
+    <input type="file" id="file-input" name="file" accept=".xlsx"
+           style="display:none;" onchange="onFileSelect(this)">
+
+    <div style="margin-top:20px;display:flex;gap:10px;">
+      <button type="submit" class="btn btn-primary" id="btn-submit" disabled
+              onclick="this.disabled=true;this.textContent='⏳ Đang kiểm tra...';this.form.submit();">
+        🔍 Kiểm tra file
+      </button>
+      <a href="{{ url_for('orders_page') }}" class="btn btn-ghost">Hủy</a>
+    </div>
+  </form>
+</div>
+{% endif %}
+{% endblock %}
+
+{% block scripts %}
+<script>
+function onFileSelect(input) {
+  const f = input.files[0];
+  document.getElementById('file-name').textContent = f ? f.name : '';
+  document.getElementById('btn-submit').disabled = !f;
+  const dz = document.getElementById('drop-zone');
+  dz.style.borderColor = f ? 'var(--accent)' : 'var(--border)';
+  dz.style.background  = f ? 'var(--accent-lt)' : '';
+}
+function onDragOver(e) {
+  e.preventDefault();
+  document.getElementById('drop-zone').style.cssText += ';border-color:var(--accent);background:var(--accent-lt);';
+}
+function onDragLeave(e) {
+  document.getElementById('drop-zone').style.borderColor = 'var(--border)';
+  document.getElementById('drop-zone').style.background  = '';
+}
+function onDrop(e) {
+  e.preventDefault();
+  const file = e.dataTransfer.files[0];
+  if (!file || !file.name.endsWith('.xlsx')) { alert('Chỉ hỗ trợ file .xlsx'); return; }
+  const dt = new DataTransfer();
+  dt.items.add(file);
+  document.getElementById('file-input').files = dt.files;
+  onFileSelect(document.getElementById('file-input'));
+}
+</script>
+{% endblock %}

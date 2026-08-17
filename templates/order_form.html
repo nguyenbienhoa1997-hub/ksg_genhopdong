@@ -638,9 +638,11 @@ function recalcAll() {
 
   if (amount > 0 && laiSuat > 0 && songay > 0) {
     const tienTN = Math.round(amount + amount * laiSuat / 100 * songay / 365);
-    document.getElementById('h-tien-tn').value = tienTN.toLocaleString('de-DE');
+    document.getElementById('h-tien-tn').value    = tienTN.toLocaleString('de-DE');
+    document.getElementById('h-tien-tn-bc').value = numToViWords(tienTN);
   } else {
-    document.getElementById('h-tien-tn').value = '';
+    document.getElementById('h-tien-tn').value    = '';
+    document.getElementById('h-tien-tn-bc').value = '';
   }
 
   document.getElementById('h-stbc').value = amount > 0 ? numToViWords(amount) : '';
@@ -837,8 +839,9 @@ async function fetchNewSeq() {
   }
 }
 
-const IS_EDIT   = {{ 'true' if order else 'false' }};
-const EDIT_DATA = {{ data|tojson }};
+const IS_EDIT      = {{ 'true' if order else 'false' }};
+const IS_EXTENSION = {{ 'true' if is_extension is defined and is_extension else 'false' }};
+const EDIT_DATA    = {{ data|tojson }};
 
 // Init Flatpickr cho Ngày đầu tư
 const _ndtEl = document.getElementById('ndt-field');
@@ -870,43 +873,62 @@ async function initForm() {
   }
 
   // 2. Khôi phục Chính sách + Kỳ hạn
-  const savedPolicyId = EDIT_DATA['_chinh_sach_id'];
-  const savedKyHan    = parseInt(EDIT_DATA['Kỳ hạn theo tháng'] || 0);
-  const savedLaiSuat  = parseFloat((EDIT_DATA['Lãi suất'] || '0').replace(',', '.'));
+  const savedKyHan   = parseInt(EDIT_DATA['Kỳ hạn theo tháng'] || 0);
+  const savedLaiSuat = parseFloat((EDIT_DATA['Lãi suất'] || '0').replace(',', '.'));
 
-  let policyRestored = false;
-
-  if (savedPolicyId) {
-    // Có policy ID đã lưu → dùng thẳng
-    const csSel = document.getElementById('cs-sel');
-    if (csSel) csSel.value = savedPolicyId;
-    await onPolicyChange(savedPolicyId);
-    policyRestored = true;
-  } else if (savedKyHan && savedLaiSuat) {
-    // Lệnh cũ chưa lưu policy ID → tìm ngược từ kỳ hạn + lãi suất
-    for (const policy of activePolicies) {
+  if (IS_EXTENSION) {
+    // Lệnh gia hạn: load tenor từ extension policy, cho phép chọn lại kỳ hạn
+    const extPid = EDIT_DATA['_gia_han_chinh_sach_id'];
+    if (extPid) {
       try {
-        const r = await fetch(`/api/policies/${policy.id}/tenors`);
-        const tenors = await r.json();
-        const match = tenors.find(t => t.ky_han == savedKyHan && Math.abs(t.loi_tuc - savedLaiSuat) < 0.01);
-        if (match) {
-          const csSel = document.getElementById('cs-sel');
-          if (csSel) csSel.value = policy.id;
-          await onPolicyChange(policy.id);
-          policyRestored = true;
-          break;
+        const r = await fetch(`/api/extension-policies/${extPid}/tenors`);
+        currentTenors = await r.json();
+        const khSel = document.getElementById('kh-sel');
+        if (khSel) {
+          khSel.innerHTML = '<option value="">-- Chọn kỳ hạn --</option>';
+          currentTenors.forEach(t => khSel.add(new Option(`${t.ky_han} tháng  —  ${t.loi_tuc}%/năm`, t.id)));
+          khSel.disabled = false;
+          // Pre-select kỳ hạn hiện tại
+          const tenor = currentTenors.find(t => t.ky_han == savedKyHan);
+          if (tenor) { khSel.value = tenor.id; onTenorChange(khSel); }
         }
       } catch(e) {}
     }
-  }
+  } else {
+    // Lệnh thường: khôi phục chính sách + kỳ hạn
+    const savedPolicyId = EDIT_DATA['_chinh_sach_id'];
+    let policyRestored = false;
 
-  // 3. Khôi phục Kỳ hạn trong dropdown
-  if (policyRestored && savedKyHan) {
-    const tenor = currentTenors.find(t => t.ky_han == savedKyHan);
-    if (tenor) {
-      const khSel = document.getElementById('kh-sel');
-      if (khSel) khSel.value = tenor.id;
-      onTenorChange(khSel);
+    if (savedPolicyId) {
+      const csSel = document.getElementById('cs-sel');
+      if (csSel) csSel.value = savedPolicyId;
+      await onPolicyChange(savedPolicyId);
+      policyRestored = true;
+    } else if (savedKyHan && savedLaiSuat) {
+      for (const policy of activePolicies) {
+        try {
+          const r = await fetch(`/api/policies/${policy.id}/tenors`);
+          const tenors = await r.json();
+          const match = tenors.find(t => t.ky_han == savedKyHan && Math.abs(t.loi_tuc - savedLaiSuat) < 0.01);
+          if (match) {
+            const csSel = document.getElementById('cs-sel');
+            if (csSel) csSel.value = policy.id;
+            await onPolicyChange(policy.id);
+            policyRestored = true;
+            break;
+          }
+        } catch(e) {}
+      }
+    }
+
+    // 3. Khôi phục Kỳ hạn trong dropdown
+    if (policyRestored && savedKyHan) {
+      const tenor = currentTenors.find(t => t.ky_han == savedKyHan);
+      if (tenor) {
+        const khSel = document.getElementById('kh-sel');
+        if (khSel) khSel.value = tenor.id;
+        onTenorChange(khSel);
+      }
     }
   }
 
@@ -940,8 +962,8 @@ function validateAndSaveEdit() {
 
   // Thông tin hợp đồng
   if (!document.getElementById('lot-select')?.value)                                   errs.push('Chưa chọn Lô Trái Phiếu');
-  if (!document.getElementById('cs-sel')?.value)                                       errs.push('Chưa chọn Chính sách');
-  if (!document.getElementById('kh-sel')?.value)                                       errs.push('Chưa chọn Kỳ hạn');
+  if (!IS_EXTENSION && !document.getElementById('cs-sel')?.value)                      errs.push('Chưa chọn Chính sách');
+  if (!document.getElementById('kh-sel')?.value)                                        errs.push('Chưa chọn Kỳ hạn');
   if (!document.getElementById('st-field')?.value.trim())                              errs.push('Chưa nhập Số tiền đầu tư');
   if (!document.getElementById('h-ngd')?.value.trim())                                 errs.push('Chưa chọn Ngày đầu tư');
 

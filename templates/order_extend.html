@@ -38,10 +38,15 @@
           <div class="detail-label">Tài khoản nhận tiền</div>
           <div class="detail-value">{{ data.get('Tài khoản KH ','') }} — {{ data.get('Ngân hàng - chi nhánh','') }}</div>
         </div>
+        <div style="grid-column:1/-1;">
+          <label class="form-label">Số tài khoản chứng khoán <span style="color:var(--danger);">*</span></label>
+          <input type="text" name="SỐ TKCK" id="so-tkck" value="{{ data.get('SỐ TKCK','') }}"
+                 style="width:100%;" placeholder="Nhập số TKCK...">
+        </div>
       </div>
       {% for f in ["Tên khách hàng","Giới tính","Thông tin CMND/CCCD của KH","Ngày cấp","Nơi cấp",
                     "Địa chỉ liên lạc","Số điện thoại","Ngày tháng năm Sinh","ĐỊA CHỈ EMAIL ",
-                    "Tài khoản KH ","Tên tài khoản KH","Ngân hàng - chi nhánh","SỐ TKCK","NƠI MỞ TKCK","Phí phong tỏa"] %}
+                    "Tài khoản KH ","Tên tài khoản KH","Ngân hàng - chi nhánh","NƠI MỞ TKCK","Phí phong tỏa"] %}
       <input type="hidden" name="{{ f }}" value="{{ data.get(f,'') }}">
       {% endfor %}
     </div>
@@ -174,8 +179,10 @@
       <input type="hidden" name="Ngày đáo hạn HĐ"     id="h-ndh" value="">
       <input type="hidden" name="Số ngày cho vay"     id="h-songay" value="">
       <input type="hidden" name="Số tiền bằng chữ"    id="h-stbc" value="">
-      <input type="hidden" name="Số tiền thực nhận"   id="h-tien-tn" value="">
+      <input type="hidden" name="Số tiền thực nhận"          id="h-tien-tn"    value="">
+      <input type="hidden" name="Số tiền thực nhận bằng chữ" id="h-tien-tn-bc" value="">
       <input type="hidden" name="Số lượng trái phiếu thế chấp" id="h-sl-tp" value="">
+      <input type="hidden" name="Số lượng TP thế chấp chênh lệch" id="h-sl-tp-cl" value="">
       <input type="hidden" name="_gia_han_chinh_sach_id" id="h-policy-id" value="">
 
       <!-- Snapshot kỳ cũ (đọc cho mẫu Phụ lục gia hạn) -->
@@ -233,6 +240,7 @@ let selectedPct    = 0;
 
 const OLD_GOC        = "{{ parent_data.get('Giá trị hợp đồng trái phiếu','')|e }}";
 const OLD_THUC_NHAN  = "{{ parent_data.get('Số tiền thực nhận','')|e }}";
+const OLD_SL_TP      = "{{ parent_data.get('Số lượng trái phiếu thế chấp','')|e }}";
 const ORIGINAL_LOT_FIELDS = {
   'Mã trái phiếu (theo Văn kiện trái phiếu)': "{{ data.get('Mã trái phiếu (theo Văn kiện trái phiếu)','')|e }}",
   'Mã trái phiếu (do VSDC cấp)':              "{{ data.get('Mã trái phiếu (do VSDC cấp)','')|e }}",
@@ -404,20 +412,27 @@ function recalcAll() {
   const donGia    = (selectedLot?.don_gia || 0);
 
   if (amount > 0 && selectedPct > 0 && donGia > 0) {
-    document.getElementById('h-sl-tp').value = Math.ceil(amount * selectedPct / 100 / donGia).toLocaleString('vi-VN');
+    const newSlTp = Math.ceil(amount * selectedPct / 100 / donGia);
+    document.getElementById('h-sl-tp').value = newSlTp.toLocaleString('vi-VN');
+    const oldSlTp = parseInt((OLD_SL_TP || '').replace(/[.,\s]/g, '')) || 0;
+    const clSlTp  = newSlTp - oldSlTp;
+    document.getElementById('h-sl-tp-cl').value = clSlTp > 0 ? clSlTp.toLocaleString('vi-VN') : '';
   } else {
-    document.getElementById('h-sl-tp').value = '';
+    document.getElementById('h-sl-tp').value    = '';
+    document.getElementById('h-sl-tp-cl').value = '';
   }
 
   let tienTN = '';
   if (amount > 0 && laiSuat > 0 && songay > 0) {
     tienTN = Math.round(amount + amount * laiSuat / 100 * songay / 365);
-    document.getElementById('h-tien-tn').value = tienTN.toLocaleString('de-DE');
-    document.getElementById('tt-display').value = tienTN.toLocaleString('de-DE') + ' đồng';
+    document.getElementById('h-tien-tn').value    = tienTN.toLocaleString('de-DE');
+    document.getElementById('h-tien-tn-bc').value = numToViWords(tienTN);
+    document.getElementById('tt-display').value   = tienTN.toLocaleString('de-DE') + ' đồng';
     document.getElementById('h-lai-trong-han').value = (tienTN - amount).toLocaleString('de-DE');
   } else {
-    document.getElementById('h-tien-tn').value = '';
-    document.getElementById('tt-display').value = '';
+    document.getElementById('h-tien-tn').value    = '';
+    document.getElementById('h-tien-tn-bc').value = '';
+    document.getElementById('tt-display').value   = '';
     document.getElementById('h-lai-trong-han').value = '';
   }
 
@@ -430,7 +445,7 @@ function recalcAll() {
     const traKH = Math.max(0, oldThucNhan - amount);
     traKhEl.value      = traKH.toLocaleString('de-DE') + ' đồng';
     hTraKhEl.value     = traKH.toLocaleString('de-DE');
-    hTraKhStbcEl.value = traKH > 0 ? numToViWords(traKH) : '';
+    hTraKhStbcEl.value = traKH > 0 ? numToViWords(traKH) : 'Không đồng';
   } else {
     traKhEl.value      = '';
     hTraKhEl.value     = '';
@@ -443,6 +458,7 @@ function recalcAll() {
 function submitExtend() {
   const errs = [];
   const loaiGh = document.getElementById('loai-gh-sel').value;
+  if (!document.getElementById('so-tkck').value.trim()) errs.push('Chưa nhập Số tài khoản chứng khoán');
   if (!loaiGh) errs.push('Chưa chọn Loại gia hạn');
   if (!document.getElementById('kieu-gh-sel').value) errs.push('Chưa chọn Kiểu gia hạn');
   if (loaiGh === 'Chuyển lô' && !document.getElementById('lot-select').value) errs.push('Chưa chọn Lô trái phiếu mới');

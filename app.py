@@ -494,7 +494,8 @@ ORDER_FIELDS = [
     "Số tiền bằng chữ", "Ngày giao dịch", "Ngày bằng chữ",
     "Kỳ hạn theo tháng", "Ngày đáo hạn HĐ", "Số ngày cho vay", "Lãi suất",
     "Tài khoản KH ", "Tên tài khoản KH", "Ngân hàng - chi nhánh",
-    "Số lượng trái phiếu thế chấp", "Số tiền thực nhận",
+    "Số lượng trái phiếu thế chấp", "Số tiền thực nhận", "Số tiền thực nhận bằng chữ",
+    "Số lượng TP thế chấp chênh lệch",
     "Mã trái phiếu (theo Văn kiện trái phiếu)",
     "Mã trái phiếu (do VSDC cấp)", "TỔ CHỨC PH", "NGÀY PHÁT HÀNH ",
     "NGÀY ĐÁO HẠN ", "ĐỊA CHỈ EMAIL ", "SỐ TKCK", "NƠI MỞ TKCK", "Phí phong tỏa",
@@ -649,6 +650,324 @@ def orders_export():
     buf.seek(0)
     from datetime import datetime
     fname = f"danh_sach_lenh_{datetime.now().strftime('%Y%m%d_%H%M')}.xlsx"
+    return send_file(buf, as_attachment=True, download_name=fname,
+                     mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
+IMPORT_COLS = [
+    "Tên khách hàng", "Giới tính", "Thông tin CMND/CCCD của KH", "Ngày cấp", "Nơi cấp",
+    "Địa chỉ liên lạc", "Số điện thoại", "Ngày tháng năm Sinh", "ĐỊA CHỈ EMAIL ", "SỐ TKCK", "NƠI MỞ TKCK",
+    "Số Hợp đồng vay vốn", "Số HĐ Thế chấp",
+    "Giá trị hợp đồng trái phiếu", "Ngày giao dịch", "Kỳ hạn theo tháng",
+    "Lãi suất", "Ngày đáo hạn HĐ", "Số ngày cho vay",
+    "Số tiền bằng chữ", "Số tiền thực nhận", "Số tiền thực nhận bằng chữ",
+    "Mã trái phiếu (theo Văn kiện trái phiếu)", "Mã trái phiếu (do VSDC cấp)",
+    "TỔ CHỨC PH", "NGÀY PHÁT HÀNH ", "NGÀY ĐÁO HẠN ",
+    "Số lượng trái phiếu thế chấp",
+    "Tài khoản KH ", "Tên tài khoản KH", "Ngân hàng - chi nhánh",
+    "Người nhận hợp đồng", "SĐT người nhận", "Địa chỉ người nhận",
+]
+
+
+@app.route("/orders/import/template")
+def orders_import_template():
+    from openpyxl.styles import PatternFill, Font, Alignment, Border, Side
+    from openpyxl.utils import get_column_letter
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Import Lệnh"
+
+    # Header style
+    hdr_fill  = PatternFill("solid", fgColor="1E3A5F")
+    hdr_font  = Font(bold=True, color="FFFFFF", size=10)
+    hdr_align = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    thin      = Side(style="thin", color="CCCCCC")
+    border    = Border(left=thin, right=thin, top=thin, bottom=thin)
+    req_fill  = PatternFill("solid", fgColor="FFF3CD")
+
+    REQUIRED = {"Tên khách hàng", "Thông tin CMND/CCCD của KH", "Giới tính",
+                "Ngày giao dịch", "Số Hợp đồng vay vốn", "Số HĐ Thế chấp",
+                "Giá trị hợp đồng trái phiếu", "Lãi suất", "Kỳ hạn theo tháng"}
+
+    for ci, col in enumerate(IMPORT_COLS, 1):
+        cell = ws.cell(row=1, column=ci, value=col)
+        cell.font      = hdr_font
+        cell.fill      = hdr_fill if col not in REQUIRED else PatternFill("solid", fgColor="C0392B")
+        cell.alignment = hdr_align
+        cell.border    = border
+        ws.column_dimensions[get_column_letter(ci)].width = max(14, min(28, len(col) + 4))
+
+    ws.row_dimensions[1].height = 36
+
+    # 3 dòng ví dụ mẫu
+    SAMPLE = [
+        ["Nguyễn Văn A", "Nam", "001234567890", "01/01/2020", "Hà Nội",
+         "123 Đường ABC, Hà Nội", "0901234567", "01/01/1985", "email@gmail.com",
+         "C1234567", "KGALAXY", "00001/HDVV-KGALAXY.SAMCH2126005-KSG01",
+         "00001/HDTC-KGALAXY.SAMCH2126005-KSG01",
+         "500000000", "27/07/2026", "1", "7,3", "27/08/2026", "31",
+         "Năm trăm triệu đồng chẵn", "503100000", "Năm trăm lẻ ba triệu một trăm nghìn đồng chẵn",
+         "SAMCH2126005", "SAMCH2126005", "Công ty CP ABC", "01/01/2024", "31/12/2028",
+         "1250", "1234567890", "Nguyễn Văn A", "MB - Hà Nội",
+         "Nguyễn Văn A", "0901234567", "123 Đường ABC, Hà Nội"],
+    ]
+    note_fill = PatternFill("solid", fgColor="F0F4FF")
+    for ri, row in enumerate(SAMPLE, 2):
+        for ci, val in enumerate(row, 1):
+            cell = ws.cell(row=ri, column=ci, value=val)
+            cell.fill      = note_fill
+            cell.border    = border
+            cell.alignment = Alignment(vertical="center")
+
+    # Ghi chú row 2
+    ws.row_dimensions[2].height = 20
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    return send_file(buf, as_attachment=True,
+                     download_name="mau_import_lenh.xlsx",
+                     mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
+IMPORT_REQUIRED = {"Tên khách hàng", "Số Hợp đồng vay vốn"}
+
+
+def _parse_import_file(f):
+    """Đọc file xlsx, trả về list rows với status: ok | dup | error.
+    Check trùng: (1) trong file với nhau, (2) với DB theo cả HDVV và HDTC."""
+    from openpyxl import load_workbook as _load_wb
+    wb = _load_wb(f, data_only=True)
+    ws = wb.active
+    headers = [str(ws.cell(row=1, column=c).value or "").strip()
+               for c in range(1, ws.max_column + 1)]
+
+    # Kiểm tra tiêu đề phải khớp đúng với file mẫu (so sánh đã strip 2 phía)
+    header_set = set(headers)
+    missing_cols = [c for c in IMPORT_COLS if c.strip() not in header_set]
+    if missing_cols:
+        raise ValueError(
+            f"File không đúng định dạng — thiếu {len(missing_cols)} cột: "
+            + ", ".join(f'"{c}"' for c in missing_cols[:5])
+            + ("..." if len(missing_cols) > 5 else "")
+            + ". Vui lòng tải file mẫu và điền vào đó."
+        )
+
+    rows = []
+    seen_hdvv = {}  # so_hdvv -> row index (check trùng trong file)
+    seen_hdtc = {}  # so_hdtc -> row index
+
+    for ri in range(2, ws.max_row + 1):
+        raw = [ws.cell(row=ri, column=c).value for c in range(1, ws.max_column + 1)]
+        if all(v is None or str(v).strip() == "" for v in raw):
+            continue
+        data = {}
+        for hi, h in enumerate(headers):
+            if h and hi < len(raw):
+                cell_val = raw[hi]
+                import re as _re
+                if cell_val is None:
+                    v = ""
+                elif isinstance(cell_val, (int, float)):
+                    if cell_val == int(cell_val):
+                        # Số nguyên (100000000) → lưu không dấu chấm
+                        v = str(int(cell_val))
+                    else:
+                        # Số thập phân từ Excel (7.3) → chuẩn hóa sang dấu phẩy (7,3)
+                        v = str(cell_val).replace(".", ",")
+                else:
+                    v = str(cell_val).strip()
+                    # Chuẩn hóa số tiền: "100.000.000" → "100000000"
+                    if _re.fullmatch(r'\d{1,3}(\.\d{3})+', v):
+                        v = v.replace(".", "")
+                data[h] = v
+        order_data = {f: "" for f in ORDER_FIELDS}
+        _field_map = {f.strip(): f for f in ORDER_FIELDS}
+        for k, v in data.items():
+            target = _field_map.get(k, k)
+            if target in order_data:
+                order_data[target] = v
+
+        # Tự sinh Ngày bằng chữ từ Ngày giao dịch
+        if not order_data.get("Ngày bằng chữ", "").strip():
+            _ngd = order_data.get("Ngày giao dịch", "").strip()
+            try:
+                _dt = datetime.strptime(_ngd, "%d/%m/%Y")
+                order_data["Ngày bằng chữ"] = f"ngày {_dt.day} tháng {_dt.month} năm {_dt.year}"
+            except ValueError:
+                pass
+
+        ten_kh  = order_data.get("Tên khách hàng", "").strip()
+        so_hdvv = order_data.get("Số Hợp đồng vay vốn", "").strip()
+        so_hdtc = order_data.get("Số HĐ Thế chấp", "").strip()
+        gia_tri = order_data.get("Giá trị hợp đồng trái phiếu", "").strip()
+        ngay_gd = order_data.get("Ngày giao dịch", "").strip()
+
+        # 1. Kiểm tra thiếu thông tin bắt buộc
+        missing = []
+        if not ten_kh:  missing.append("Tên KH")
+        if not so_hdvv: missing.append("Số HĐ vay vốn")
+        if missing:
+            rows.append({"row": ri, "status": "error", "reason": "Thiếu: " + ", ".join(missing),
+                         "ten_kh": ten_kh or "—", "so_hdvv": so_hdvv or "—",
+                         "so_hdtc": so_hdtc, "gia_tri": gia_tri, "ngay_gd": ngay_gd,
+                         "data": order_data})
+            continue
+
+        # 2. Kiểm tra trùng trong file
+        dup_reasons = []
+        if so_hdvv and so_hdvv in seen_hdvv:
+            dup_reasons.append(f"Số HĐ vay vốn trùng dòng {seen_hdvv[so_hdvv]} trong file")
+        if so_hdtc and so_hdtc in seen_hdtc:
+            dup_reasons.append(f"Số HĐ thế chấp trùng dòng {seen_hdtc[so_hdtc]} trong file")
+
+        # 3. Kiểm tra trùng với DB (dùng check_duplicate_so_hd cho chính xác)
+        if not dup_reasons:
+            hdvv_dup, hdtc_dup = db.check_duplicate_so_hd(hdvv=so_hdvv, hdtc=so_hdtc)
+            if hdvv_dup:
+                dup_reasons.append(f"Số HĐ vay vốn trùng lệnh #{hdvv_dup['order_id']} ({hdvv_dup['ten_kh']})")
+            if hdtc_dup:
+                dup_reasons.append(f"Số HĐ thế chấp trùng lệnh #{hdtc_dup['order_id']} ({hdtc_dup['ten_kh']})")
+
+        if dup_reasons:
+            rows.append({"row": ri, "status": "dup",
+                         "reason": " | ".join(dup_reasons),
+                         "ten_kh": ten_kh, "so_hdvv": so_hdvv,
+                         "so_hdtc": so_hdtc, "gia_tri": gia_tri, "ngay_gd": ngay_gd,
+                         "data": order_data})
+            continue
+
+        # Hợp lệ — ghi nhớ để check các dòng tiếp theo trong file
+        if so_hdvv: seen_hdvv[so_hdvv] = ri
+        if so_hdtc: seen_hdtc[so_hdtc] = ri
+        rows.append({"row": ri, "status": "ok", "reason": "",
+                     "ten_kh": ten_kh, "so_hdvv": so_hdvv,
+                     "so_hdtc": so_hdtc, "gia_tri": gia_tri, "ngay_gd": ngay_gd,
+                     "data": order_data})
+    return rows
+
+
+@app.route("/orders/import", methods=["GET", "POST"])
+def orders_import_page():
+    if request.method == "GET":
+        return render_template("order_import.html")
+
+    f = request.files.get("file")
+    if not f or not f.filename.endswith(".xlsx"):
+        flash("Vui lòng chọn file .xlsx", "danger")
+        return render_template("order_import.html")
+
+    try:
+        rows = _parse_import_file(f)
+    except Exception as e:
+        flash(f"Không đọc được file: {e}", "danger")
+        return render_template("order_import.html")
+
+    ok_rows    = [r for r in rows if r["status"] == "ok"]
+    dup_rows   = [r for r in rows if r["status"] == "dup"]
+    error_rows = [r for r in rows if r["status"] == "error"]
+    payload    = json.dumps([r["data"] for r in ok_rows], ensure_ascii=False)
+    preview_payload = json.dumps([
+        {"row": r["row"], "status": r["status"], "reason": r["reason"],
+         "ten_kh": r["ten_kh"], "so_hdvv": r["so_hdvv"],
+         "so_hdtc": r["so_hdtc"], "gia_tri": r["gia_tri"], "ngay_gd": r["ngay_gd"]}
+        for r in rows
+    ], ensure_ascii=False)
+
+    return render_template("order_import.html", preview=True,
+                           rows=rows, ok_rows=ok_rows, dup_rows=dup_rows,
+                           error_rows=error_rows, payload=payload,
+                           preview_payload=preview_payload)
+
+
+@app.route("/orders/import/confirm", methods=["POST"])
+def orders_import_confirm():
+    payload = request.form.get("payload", "")
+    try:
+        records = json.loads(payload)
+    except Exception:
+        flash("Dữ liệu không hợp lệ", "danger")
+        return redirect(url_for("orders_import_page"))
+
+    ok_count = 0
+    skipped  = 0
+    for order_data in records:
+        so_hdvv = order_data.get("Số Hợp đồng vay vốn", "").strip()
+        if db.find_order_by_so_hd(so_hdvv):
+            skipped += 1
+            continue
+        db.add_order(json.dumps(order_data, ensure_ascii=False))
+        ok_count += 1
+
+    flash(f"Đã import {ok_count} lệnh thành công" + (f" ({skipped} bỏ qua do trùng)" if skipped else ""), "success")
+    return redirect(url_for("orders_page"))
+
+
+@app.route("/orders/import/preview-download", methods=["POST"])
+def orders_import_preview_download():
+    raw = request.form.get("preview_payload", "")
+    try:
+        rows = json.loads(raw)
+    except Exception:
+        flash("Dữ liệu không hợp lệ", "danger")
+        return redirect(url_for("orders_import_page"))
+
+    STATUS_LABELS = {"ok": "Hợp lệ", "dup": "Trùng số HĐ", "error": "Lỗi / thiếu thông tin"}
+    FILL_OK    = PatternFill("solid", fgColor="C6EFCE")
+    FILL_DUP   = PatternFill("solid", fgColor="FFEB9C")
+    FILL_ERR   = PatternFill("solid", fgColor="FFC7CE")
+    FONT_HDR   = Font(bold=True, color="FFFFFF")
+    FILL_HDR   = PatternFill("solid", fgColor="1E3A5F")
+    CENTER     = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    LEFT       = Alignment(horizontal="left",   vertical="center", wrap_text=True)
+
+    wb = Workbook()
+    ws = wb.active
+    ws.title = "Kết quả kiểm tra"
+
+    headers = ["STT", "Trạng thái", "Tên khách hàng",
+               "Số HĐ vay vốn", "Số HĐ thế chấp",
+               "Giá trị HĐ", "Ngày GD", "Ghi chú"]
+    col_widths = [6, 18, 30, 40, 40, 18, 14, 50]
+
+    for ci, (h, w) in enumerate(zip(headers, col_widths), start=1):
+        cell = ws.cell(row=1, column=ci, value=h)
+        cell.font      = FONT_HDR
+        cell.fill      = FILL_HDR
+        cell.alignment = CENTER
+        ws.column_dimensions[get_column_letter(ci)].width = w
+    ws.row_dimensions[1].height = 22
+
+    for ri, r in enumerate(rows, start=2):
+        status = r.get("status", "")
+        fill   = FILL_OK if status == "ok" else (FILL_DUP if status == "dup" else FILL_ERR)
+        gia_tri_raw = r.get("gia_tri") or ""
+        try:
+            gia_tri = f"{float(gia_tri_raw):,.0f}" if gia_tri_raw else ""
+        except Exception:
+            gia_tri = str(gia_tri_raw)
+
+        row_vals = [
+            ri - 1,
+            STATUS_LABELS.get(status, status),
+            r.get("ten_kh", ""),
+            r.get("so_hdvv", ""),
+            r.get("so_hdtc", ""),
+            gia_tri,
+            r.get("ngay_gd", ""),
+            r.get("reason", ""),
+        ]
+        aligns = [CENTER, CENTER, LEFT, LEFT, LEFT, CENTER, CENTER, LEFT]
+        for ci, (val, aln) in enumerate(zip(row_vals, aligns), start=1):
+            cell = ws.cell(row=ri, column=ci, value=val)
+            cell.fill      = fill
+            cell.alignment = aln
+        ws.row_dimensions[ri].height = 16
+
+    buf = io.BytesIO()
+    wb.save(buf)
+    buf.seek(0)
+    fname = f"kiem_tra_import_{datetime.now().strftime('%Y%m%d_%H%M%S')}.xlsx"
     return send_file(buf, as_attachment=True, download_name=fname,
                      mimetype="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
@@ -834,10 +1153,34 @@ def order_edit(id):
     data = json.loads(order["data"]) if order["data"] else {}
     if request.method == "POST":
         new_data = {f: request.form.get(f, "") for f in ORDER_FIELDS}
+        # Giữ lại các trường gia hạn không có trong form edit
+        EXTEND_ONLY = [
+            "Loại gia hạn", "Kiểu gia hạn", "_gia_han_chinh_sach_id",
+            "Kỳ hạn theo tháng", "Ngày đáo hạn HĐ", "Số ngày cho vay",
+            "Lãi suất", "Số tiền thực nhận", "Số tiền bằng chữ",
+            "Số tiền thực nhận bằng chữ", "Số lượng trái phiếu thế chấp",
+            "Số lượng TP thế chấp chênh lệch", "_chinh_sach_id",
+            "Kỳ hạn cũ", "Ngày đáo hạn cũ", "Lãi suất cũ", "Ngày giao dịch cũ",
+            "Số HĐ vay vốn cũ", "Số HĐ Thế chấp cũ", "Giá trị hợp đồng cũ",
+            "Số tiền thực nhận cũ", "Số tiền bằng chữ cũ", "Số tiền lãi HĐ cũ",
+            "Số tiền thực nhận bằng chữ cũ", "Số tiền trả KH", "Số tiền trả KH bằng chữ",
+            "Lãi trong hạn", "Lần gia hạn", "Số lượng TP thế chấp chênh lệch",
+        ]
+        for f in EXTEND_ONLY:
+            if not new_data.get(f) and data.get(f):
+                new_data[f] = data[f]
         db.update_order(id, json.dumps(new_data, ensure_ascii=False))
         flash("Đã lưu thay đổi", "success")
         return redirect(url_for("order_detail", id=id))
-    return render_template("order_form.html", order=order, fields=ORDER_FIELDS, data=data)
+    is_extension = bool(order["extended_from_order_id"]) if "extended_from_order_id" in order.keys() else False
+    ext_policy_name = ""
+    if is_extension:
+        pid = data.get("_gia_han_chinh_sach_id", "")
+        if pid:
+            ep = db.get_extension_policy(int(pid)) if str(pid).isdigit() else None
+            ext_policy_name = ep["ten_chinh_sach"] if ep else ""
+    return render_template("order_form.html", order=order, fields=ORDER_FIELDS, data=data,
+                           is_extension=is_extension, ext_policy_name=ext_policy_name)
 
 
 @app.route("/orders/<int:id>/generate", methods=["POST"])
