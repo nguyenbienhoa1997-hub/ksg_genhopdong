@@ -866,27 +866,35 @@ def orders_import_page():
     ok_rows    = [r for r in rows if r["status"] == "ok"]
     dup_rows   = [r for r in rows if r["status"] == "dup"]
     error_rows = [r for r in rows if r["status"] == "error"]
-    payload    = json.dumps([r["data"] for r in ok_rows], ensure_ascii=False)
-    preview_payload = json.dumps([
-        {"row": r["row"], "status": r["status"], "reason": r["reason"],
-         "ten_kh": r["ten_kh"], "so_hdvv": r["so_hdvv"],
-         "so_hdtc": r["so_hdtc"], "gia_tri": r["gia_tri"], "ngay_gd": r["ngay_gd"]}
-        for r in rows
-    ], ensure_ascii=False)
+
+    # Lưu payload vào temp file, chỉ truyền key nhỏ qua form
+    import tempfile as _tmpfile
+    _tmp_dir = os.path.join(os.path.dirname(__file__), "data", "import_tmp")
+    os.makedirs(_tmp_dir, exist_ok=True)
+    session_key = str(uuid.uuid4())
+    with open(os.path.join(_tmp_dir, f"{session_key}_payload.json"), "w", encoding="utf-8") as _fp:
+        json.dump([r["data"] for r in ok_rows], _fp, ensure_ascii=False)
+    with open(os.path.join(_tmp_dir, f"{session_key}_preview.json"), "w", encoding="utf-8") as _fp:
+        json.dump([{"row": r["row"], "status": r["status"], "reason": r["reason"],
+                    "ten_kh": r["ten_kh"], "so_hdvv": r["so_hdvv"],
+                    "so_hdtc": r["so_hdtc"], "gia_tri": r["gia_tri"], "ngay_gd": r["ngay_gd"]}
+                   for r in rows], _fp, ensure_ascii=False)
 
     return render_template("order_import.html", preview=True,
                            rows=rows, ok_rows=ok_rows, dup_rows=dup_rows,
-                           error_rows=error_rows, payload=payload,
-                           preview_payload=preview_payload)
+                           error_rows=error_rows, session_key=session_key)
 
 
 @app.route("/orders/import/confirm", methods=["POST"])
 def orders_import_confirm():
-    payload = request.form.get("payload", "")
+    session_key = request.form.get("session_key", "")
+    _tmp_dir = os.path.join(os.path.dirname(__file__), "data", "import_tmp")
+    payload_path = os.path.join(_tmp_dir, f"{session_key}_payload.json")
     try:
-        records = json.loads(payload)
+        with open(payload_path, encoding="utf-8") as _fp:
+            records = json.load(_fp)
     except Exception:
-        flash("Dữ liệu không hợp lệ", "danger")
+        flash("Phiên import đã hết hạn hoặc không hợp lệ, vui lòng upload lại file.", "danger")
         return redirect(url_for("orders_import_page"))
 
     ok_count = 0
@@ -899,13 +907,27 @@ def orders_import_confirm():
         db.add_order(json.dumps(order_data, ensure_ascii=False))
         ok_count += 1
 
+    # Xóa temp files sau khi dùng
+    for suffix in ("_payload.json", "_preview.json"):
+        try: os.remove(os.path.join(_tmp_dir, f"{session_key}{suffix}"))
+        except: pass
+
     flash(f"Đã import {ok_count} lệnh thành công" + (f" ({skipped} bỏ qua do trùng)" if skipped else ""), "success")
     return redirect(url_for("orders_page"))
 
 
 @app.route("/orders/import/preview-download", methods=["POST"])
 def orders_import_preview_download():
-    raw = request.form.get("preview_payload", "")
+    session_key = request.form.get("session_key", "")
+    _tmp_dir = os.path.join(os.path.dirname(__file__), "data", "import_tmp")
+    preview_path = os.path.join(_tmp_dir, f"{session_key}_preview.json")
+    try:
+        with open(preview_path, encoding="utf-8") as _fp:
+            raw = _fp.read()
+    except Exception:
+        flash("Phiên import đã hết hạn, vui lòng upload lại file.", "danger")
+        return redirect(url_for("orders_import_page"))
+    # Giữ lại file preview để user có thể download nhiều lần
     try:
         rows = json.loads(raw)
     except Exception:

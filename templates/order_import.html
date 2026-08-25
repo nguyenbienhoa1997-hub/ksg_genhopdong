@@ -11,12 +11,12 @@
   <div style="display:flex;gap:8px;flex-wrap:wrap;">
     <a href="{{ url_for('orders_import_page') }}" class="btn btn-ghost">← Upload lại</a>
     <form method="POST" action="{{ url_for('orders_import_preview_download') }}" style="display:inline;">
-      <input type="hidden" name="preview_payload" value="{{ preview_payload }}">
+      <input type="hidden" name="session_key" value="{{ session_key }}">
       <button type="submit" class="btn btn-ghost">⬇ Tải dữ liệu kiểm tra</button>
     </form>
     {% if error_rows|length == 0 and dup_rows|length == 0 and ok_rows %}
     <form method="POST" action="{{ url_for('orders_import_confirm') }}">
-      <input type="hidden" name="payload" value="{{ payload }}">
+      <input type="hidden" name="session_key" value="{{ session_key }}">
       <button type="submit" class="btn btn-primary"
               onclick="this.disabled=true;this.textContent='⏳ Đang import...';this.form.submit();">
         ✅ Xác nhận import {{ ok_rows|length }} lệnh
@@ -104,7 +104,7 @@
 {% if error_rows|length == 0 and dup_rows|length == 0 and ok_rows %}
 <div style="text-align:right;margin-top:16px;">
   <form method="POST" action="{{ url_for('orders_import_confirm') }}">
-    <input type="hidden" name="payload" value="{{ payload }}">
+    <input type="hidden" name="session_key" value="{{ session_key }}">
     <button type="submit" class="btn btn-primary" onclick="this.disabled=true;this.textContent='⏳ Đang import...';this.form.submit();">
       ✅ Xác nhận import {{ ok_rows|length }} lệnh
     </button>
