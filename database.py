@@ -254,6 +254,16 @@ def get_extension_templates_for(loai_gia_han, kieu_gia_han):
     return result
 
 
+def update_extension_template(id, name, code, filename, file_path, loai_gia_han, kieu_gia_han):
+    with get_db() as conn:
+        conn.execute(
+            """UPDATE extension_templates
+               SET name=?, code=?, filename=?, file_path=?, loai_gia_han=?, kieu_gia_han=?
+               WHERE id=?""",
+            (name, code, filename, file_path, loai_gia_han, kieu_gia_han, id)
+        )
+
+
 def delete_extension_template(id):
     with get_db() as conn:
         conn.execute("DELETE FROM extension_templates WHERE id = ?", (id,))

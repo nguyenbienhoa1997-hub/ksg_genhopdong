@@ -1755,6 +1755,48 @@ def download_extension_template(id):
                      download_name=f"{tpl['code']}_{tpl['filename']}")
 
 
+@app.route("/extension-templates/<int:id>/update", methods=["POST"])
+def update_extension_template(id):
+    tpl = db.get_extension_template(id)
+    if not tpl:
+        flash("Không tìm thấy mẫu", "error")
+        return redirect(url_for("ext_templates_page"))
+
+    name         = request.form.get("name", "").strip()
+    code         = request.form.get("code", "").strip().upper()
+    loai_gia_han = request.form.getlist("loai_gia_han")
+    kieu_gia_han = request.form.getlist("kieu_gia_han")
+    f            = request.files.get("file")
+
+    if not name or not code or not loai_gia_han or not kieu_gia_han:
+        flash("Vui lòng điền đầy đủ thông tin", "error")
+        return redirect(url_for("ext_templates_page"))
+
+    # Kiểm tra code trùng với mẫu khác
+    existing = db.get_extension_template_by_code(code)
+    if existing and existing["id"] != id:
+        flash(f'Mã "{code}" đã tồn tại ở mẫu khác', "error")
+        return redirect(url_for("ext_templates_page"))
+
+    new_file_path = tpl["file_path"]
+    new_filename  = tpl["filename"]
+    if f and f.filename.lower().endswith(".docx"):
+        os.makedirs(EXT_TEMPLATES_DIR, exist_ok=True)
+        new_filename  = f.filename
+        new_file_path = os.path.join(EXT_TEMPLATES_DIR, f"{code}_{uuid.uuid4().hex[:8]}.docx")
+        f.save(new_file_path)
+        if os.path.exists(tpl["file_path"]) and tpl["file_path"] != new_file_path:
+            try: os.remove(tpl["file_path"])
+            except: pass
+
+    db.update_extension_template(id, name=name, code=code, filename=new_filename,
+                                 file_path=new_file_path,
+                                 loai_gia_han=json.dumps(loai_gia_han, ensure_ascii=False),
+                                 kieu_gia_han=json.dumps(kieu_gia_han, ensure_ascii=False))
+    flash(f'Đã cập nhật mẫu "{name}"', "success")
+    return redirect(url_for("ext_templates_page"))
+
+
 @app.route("/extension-templates/<int:id>/delete", methods=["POST"])
 def delete_extension_template(id):
     tpl = db.get_extension_template(id)
