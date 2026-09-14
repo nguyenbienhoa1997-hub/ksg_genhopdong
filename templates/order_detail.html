@@ -133,7 +133,7 @@
         </thead>
         <tbody>
           {% for key, val in data.items() %}
-          {% if val and val.strip() %}
+          {% if val and val.strip() and not key.strip().startswith('_') %}
           <tr>
             <td class="text-secondary">{{ key.strip() }}</td>
             <td>{% set _money_fields = ['Giá trị hợp đồng trái phiếu','Số tiền thực nhận','Số tiền trả KH','Lãi trong hạn','Phí phong tỏa','Giá trị hợp đồng cũ','Số tiền thực nhận cũ','Số tiền lãi HĐ cũ','Số lượng trái phiếu thế chấp','Số lượng TP thế chấp chênh lệch'] %}{% if key.strip() in _money_fields and val and val.strip().isdigit() %}{{ "{:,}".format(val.strip()|int).replace(",",".") }}{% else %}{{ val }}{% endif %}</td>

@@ -503,7 +503,7 @@ ORDER_FIELDS = [
     "_chinh_sach_id",
     # ── Snapshot khi gia hạn (rollover) ──
     "Kỳ hạn cũ", "Ngày đáo hạn cũ", "Lãi suất cũ", "Ngày giao dịch cũ", "Lần gia hạn",
-    "Số HĐ vay vốn cũ", "Số HĐ Thế chấp cũ", "Giá trị hợp đồng cũ", "Số tiền thực nhận cũ",
+    "Số HĐ vay vốn cũ", "Số HĐ Thế chấp cũ", "Mã TP cũ", "Giá trị hợp đồng cũ", "Số tiền thực nhận cũ",
     "Số tiền bằng chữ cũ", "Số tiền lãi HĐ cũ", "Số tiền thực nhận bằng chữ cũ",
     "Số tiền trả KH", "Số tiền trả KH bằng chữ", "Lãi trong hạn",
     "_gia_han_chinh_sach_id", "Loại gia hạn", "Kiểu gia hạn",
@@ -1061,6 +1061,14 @@ def order_detail(id):
     order = db.get_order(id)
     if not order: return redirect(url_for("orders_page"))
     data = json.loads(order["data"]) if order["data"] else {}
+
+    # Hiển thị tên chính sách gia hạn thay vì ID nội bộ
+    pid = data.get("_gia_han_chinh_sach_id", "")
+    if pid and str(pid).isdigit():
+        ep = db.get_extension_policy(int(pid))
+        if ep:
+            data["Chính sách gia hạn"] = ep["ten_chinh_sach"]
+
     contracts = [dict(c) for c in db.get_contracts_by_order(id)]
     can_extend, extend_note = _compute_can_extend(data)
     extend_parent   = db.get_order(order["extended_from_order_id"]) if order["extended_from_order_id"] else None
@@ -1138,6 +1146,7 @@ def order_extend(id):
     prefill["Ngày giao dịch cũ"]   = old_data.get("Ngày giao dịch", "")
     prefill["Số HĐ vay vốn cũ"]    = old_data.get("Số Hợp đồng vay vốn", "")
     prefill["Số HĐ Thế chấp cũ"]   = old_data.get("Số HĐ Thế chấp", "")
+    prefill["Mã TP cũ"]            = old_data.get("Mã trái phiếu (theo Văn kiện trái phiếu)", "")
     prefill["Giá trị hợp đồng cũ"] = old_data.get("Giá trị hợp đồng trái phiếu", "")
     prefill["Số tiền thực nhận cũ"] = old_data.get("Số tiền thực nhận", "")
     prefill["Lần gia hạn"]         = str(depth)
@@ -1183,7 +1192,7 @@ def order_edit(id):
             "Số tiền thực nhận bằng chữ", "Số lượng trái phiếu thế chấp",
             "Số lượng TP thế chấp chênh lệch", "_chinh_sach_id",
             "Kỳ hạn cũ", "Ngày đáo hạn cũ", "Lãi suất cũ", "Ngày giao dịch cũ",
-            "Số HĐ vay vốn cũ", "Số HĐ Thế chấp cũ", "Giá trị hợp đồng cũ",
+            "Số HĐ vay vốn cũ", "Số HĐ Thế chấp cũ", "Mã TP cũ", "Giá trị hợp đồng cũ",
             "Số tiền thực nhận cũ", "Số tiền bằng chữ cũ", "Số tiền lãi HĐ cũ",
             "Số tiền thực nhận bằng chữ cũ", "Số tiền trả KH", "Số tiền trả KH bằng chữ",
             "Lãi trong hạn", "Lần gia hạn", "Số lượng TP thế chấp chênh lệch",
@@ -1227,12 +1236,25 @@ def order_generate(id):
     batch_dir = os.path.join(PDFS_DIR, batch_id)
     os.makedirs(batch_dir, exist_ok=True)
 
+    # Format số tiền có dấu chấm trước khi đưa vào template
+    _MONEY_FIELDS = [
+        "Giá trị hợp đồng trái phiếu", "Số tiền thực nhận", "Phí phong tỏa",
+        "Giá trị hợp đồng cũ", "Số tiền thực nhận cũ",
+        "Số tiền trả KH", "Lãi trong hạn", "Số tiền lãi HĐ cũ",
+        "Số lượng trái phiếu thế chấp", "Số lượng TP thế chấp chênh lệch",
+    ]
+    fmt_data = dict(row_data)
+    for _f in _MONEY_FIELDS:
+        _v = str(fmt_data.get(_f, "") or "").strip().replace(".", "").replace(",", "")
+        if _v.isdigit():
+            fmt_data[_f] = f"{int(_v):,}".replace(",", ".")
+
     errors, count = [], 0
     for tpl in all_tpls:
         tpl      = dict(tpl)
         pdf_path = os.path.join(batch_dir, f"{name}_{tpl['code']}.pdf")
         try:
-            gen.generate_pdf(tpl["file_path"], row_data, pdf_path)
+            gen.generate_pdf(tpl["file_path"], fmt_data, pdf_path)
             db.add_contract(
                 name=f"{name} - {tpl['name']}", template_id=tpl["id"],
                 template_name=tpl["name"], template_code=tpl["code"],
