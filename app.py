@@ -1132,6 +1132,9 @@ def order_extend(id):
             flash("Số HĐ gia hạn bị trùng, vui lòng thử lại.", "danger")
             return redirect(url_for("order_extend", id=id))
 
+        # Gán các field snapshot không có trong form
+        new_data["Mã TP cũ"] = old_data.get("Mã trái phiếu (theo Văn kiện trái phiếu)", "")
+
         oid = db.add_order(json.dumps(new_data, ensure_ascii=False), extended_from_order_id=id)
         flash(f"Đã tạo lệnh gia hạn lần {depth} từ lệnh #{id}", "success")
         return redirect(url_for("order_detail", id=oid))
