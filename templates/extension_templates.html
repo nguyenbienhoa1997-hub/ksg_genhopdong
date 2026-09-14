@@ -41,7 +41,13 @@
         <td class="text-secondary">{{ t.created_at[:10] }}</td>
         <td style="text-align:right;">
           <div class="split-btn">
-            <button class="split-btn-main" onclick="openEditModal({{ t.id }}, {{ t.name|tojson }}, {{ t.code|tojson }}, {{ t.kieu_list|tojson }}, {{ t.loai_list|tojson }}, {{ t.filename|tojson }})">Xem</button>
+            <button class="split-btn-main btn-edit-tpl"
+                    data-id="{{ t.id }}"
+                    data-name="{{ t.name|e }}"
+                    data-code="{{ t.code|e }}"
+                    data-kieu="{{ t.kieu_list|tojson|e }}"
+                    data-loai="{{ t.loai_list|tojson|e }}"
+                    data-filename="{{ t.filename|e }}">Xem</button>
             <button class="split-btn-arrow" onclick="toggleDropdown(this)">▾</button>
             <div class="action-menu">
               <a href="{{ url_for('download_extension_template', id=t.id) }}" class="action-item">⬇ Tải xuống</a>
@@ -203,20 +209,29 @@
 function openModal()  { document.getElementById('modal').classList.remove('hidden'); }
 function closeModal() { document.getElementById('modal').classList.add('hidden'); }
 
-function openEditModal(id, name, code, kieuList, loaiList, filename) {
-  document.getElementById('edit-form').action = '/extension-templates/' + id + '/update';
-  document.getElementById('edit-name').value = name;
-  document.getElementById('edit-code').value = code;
-  document.getElementById('edit-filename').textContent = filename;
-  document.getElementById('edit-kieu-goc').checked     = kieuList.includes('Gia hạn gốc');
-  document.getElementById('edit-kieu-loiich').checked  = kieuList.includes('Gia hạn gốc và lợi ích');
-  document.getElementById('edit-loai-khong').checked   = loaiList.includes('Không chuyển lô');
-  document.getElementById('edit-loai-co').checked      = loaiList.includes('Chuyển lô');
-  document.getElementById('edit-upload-fname').classList.add('hidden');
-  document.getElementById('edit-modal').classList.remove('hidden');
-}
-function closeEditModal() { document.getElementById('edit-modal').classList.add('hidden'); }
+document.querySelectorAll('.btn-edit-tpl').forEach(btn => {
+  btn.addEventListener('click', function() {
+    const id       = this.dataset.id;
+    const name     = this.dataset.name;
+    const code     = this.dataset.code;
+    const kieuList = JSON.parse(this.dataset.kieu);
+    const loaiList = JSON.parse(this.dataset.loai);
+    const filename = this.dataset.filename;
 
+    document.getElementById('edit-form').action = '/extension-templates/' + id + '/update';
+    document.getElementById('edit-name').value = name;
+    document.getElementById('edit-code').value = code;
+    document.getElementById('edit-filename').textContent = filename;
+    document.getElementById('edit-kieu-goc').checked    = kieuList.includes('Gia hạn gốc');
+    document.getElementById('edit-kieu-loiich').checked = kieuList.includes('Gia hạn gốc và lợi ích');
+    document.getElementById('edit-loai-khong').checked  = loaiList.includes('Không chuyển lô');
+    document.getElementById('edit-loai-co').checked     = loaiList.includes('Chuyển lô');
+    document.getElementById('edit-upload-fname').classList.add('hidden');
+    document.getElementById('edit-modal').classList.remove('hidden');
+  });
+});
+
+function closeEditModal() { document.getElementById('edit-modal').classList.add('hidden'); }
 document.getElementById('edit-modal').addEventListener('click', function(e) {
   if (e.target === this) closeEditModal();
 });
