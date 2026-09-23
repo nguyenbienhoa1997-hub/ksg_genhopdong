@@ -180,10 +180,25 @@
              style="width:100%;background:var(--sidebar-bg);color:var(--text-2);" readonly>
     </div>
 
-    <!-- Hidden: được fill tự động từ KH lookup và bank select -->
+    <!-- Tài khoản nhận tiền: hidden khi tạo mới (fill từ dropdown), hiển thị khi sửa -->
+    {% if order is not none %}
+    <div style="grid-column:1/-1;">
+      <label class="form-label">Số tài khoản nhận tiền</label>
+      <input type="text" name="Tài khoản KH " id="h-tk-kh" value="{{ data.get('Tài khoản KH ','') }}" style="width:100%;" placeholder="Số tài khoản...">
+    </div>
+    <div>
+      <label class="form-label">Tên chủ tài khoản</label>
+      <input type="text" name="Tên tài khoản KH" id="h-ten-tk" value="{{ data.get('Tên tài khoản KH','') }}" style="width:100%;" placeholder="Tên chủ tài khoản...">
+    </div>
+    <div>
+      <label class="form-label">Ngân hàng - chi nhánh</label>
+      <input type="text" name="Ngân hàng - chi nhánh" id="h-nh-cn" value="{{ data.get('Ngân hàng - chi nhánh','') }}" style="width:100%;" placeholder="Tên ngân hàng - chi nhánh...">
+    </div>
+    {% else %}
     <input type="hidden" name="Tài khoản KH "                id="h-tk-kh"   value="{{ data.get('Tài khoản KH ','') }}">
     <input type="hidden" name="Tên tài khoản KH"             id="h-ten-tk"  value="{{ data.get('Tên tài khoản KH','') }}">
     <input type="hidden" name="Ngân hàng - chi nhánh"        id="h-nh-cn"   value="{{ data.get('Ngân hàng - chi nhánh','') }}">
+    {% endif %}
     <input type="hidden" name="NƠI MỞ TKCK"                  value="{{ data.get('NƠI MỞ TKCK','') }}">
     <input type="hidden" name="Số lượng trái phiếu thế chấp" id="h-sl-tp" value="{{ data.get('Số lượng trái phiếu thế chấp','') }}">
     <input type="hidden" name="Phí phong tỏa"                value="{{ data.get('Phí phong tỏa','') }}">
