@@ -974,5 +974,36 @@ function validateAndSaveEdit() {
 
   document.getElementById('order-form').submit();
 }
+
+{% if order %}
+// ── Edit mode: auto-load tất cả STK của KH từ API ────────────────────────────
+(async function loadBankAccountsForEdit() {
+  const cccd = document.querySelector('[name="Thông tin CMND/CCCD của KH"]')?.value?.trim();
+  if (!cccd) return;
+
+  const savedSTK = {{ data.get('Tài khoản KH ', '')|tojson }};
+
+  try {
+    const r  = await fetch('/api/search-customer?q=' + encodeURIComponent(cccd));
+    const kh = await r.json();
+    if (!kh) return;
+
+    selectedKH = kh;
+
+    const sel = document.getElementById('bank-account-select');
+    if (!sel) return;
+
+    sel.innerHTML = '<option value="">-- Chọn tài khoản ngân hàng --</option>';
+    (kh.tai_khoan_ngan_hang || []).forEach((acc, i) => {
+      const bank   = acc.ngan_hang || acc.ma_nh || '';
+      const branch = acc.chi_nhanh ? ` / ${acc.chi_nhanh}` : '';
+      const label  = `${acc.so_tai_khoan} — ${bank}${branch}`;
+      const opt    = new Option(label, i);
+      sel.add(opt);
+      if (acc.so_tai_khoan === savedSTK) sel.value = i;
+    });
+  } catch(e) {}
+})();
+{% endif %}
 </script>
 {% endblock %}
