@@ -1134,6 +1134,9 @@ def order_extend(id):
 
         # Gán các field snapshot không có trong form
         new_data["Mã TP cũ"] = old_data.get("Mã trái phiếu (theo Văn kiện trái phiếu)", "")
+        # Giữ lại số lượng TP thế chấp từ HĐ cũ nếu form không gửi lên (Không chuyển lô)
+        if not new_data.get("Số lượng trái phiếu thế chấp"):
+            new_data["Số lượng trái phiếu thế chấp"] = old_data.get("Số lượng trái phiếu thế chấp", "")
 
         oid = db.add_order(json.dumps(new_data, ensure_ascii=False), extended_from_order_id=id)
         flash(f"Đã tạo lệnh gia hạn lần {depth} từ lệnh #{id}", "success")
