@@ -129,6 +129,16 @@
              placeholder="dd/mm/yyyy" readonly>
     </div>
 
+    <!-- HĐ khung -->
+    <div>
+      <label class="form-label">Số HĐ khung</label>
+      <input type="text" name="Số HĐ khung" value="{{ data.get('Số HĐ khung','') }}" style="width:100%;" placeholder="VD: 00001/HDKH-KGALAXY.2026">
+    </div>
+    <div>
+      <label class="form-label">Ngày ký HĐ khung</label>
+      <input type="text" name="Ngày ký HĐ khung" value="{{ data.get('Ngày ký HĐ khung','') }}" style="width:100%;" placeholder="dd/mm/yyyy">
+    </div>
+
     <!-- Hidden: các trường cần cho mẫu HĐ, tự động tính -->
     <input type="hidden" name="Ngày giao dịch"      id="h-ngd"    value="{{ data.get('Ngày giao dịch','') }}">
     <input type="hidden" name="Ngày bằng chữ"        id="h-nbc"    value="{{ data.get('Ngày bằng chữ','') }}">

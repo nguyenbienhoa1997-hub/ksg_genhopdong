@@ -490,7 +490,8 @@ def do_generate():
 ORDER_FIELDS = [
     "Tên khách hàng", "Giới tính", "Thông tin CMND/CCCD của KH", "Ngày cấp", "Nơi cấp",
     "Địa chỉ liên lạc", "Số điện thoại", "Ngày tháng năm Sinh",
-    "Số Hợp đồng vay vốn", "Số HĐ Thế chấp", "Giá trị hợp đồng trái phiếu",
+    "Số Hợp đồng vay vốn", "Số HĐ Thế chấp", "Số HĐ khung", "Ngày ký HĐ khung",
+    "Giá trị hợp đồng trái phiếu",
     "Số tiền bằng chữ", "Ngày giao dịch", "Ngày bằng chữ",
     "Kỳ hạn theo tháng", "Ngày đáo hạn HĐ", "Số ngày cho vay", "Lãi suất",
     "Tài khoản KH ", "Tên tài khoản KH", "Ngân hàng - chi nhánh",
@@ -666,6 +667,7 @@ IMPORT_COLS = [
     "Số lượng trái phiếu thế chấp",
     "Tài khoản KH ", "Tên tài khoản KH", "Ngân hàng - chi nhánh",
     "Người nhận hợp đồng", "SĐT người nhận", "Địa chỉ người nhận",
+    "Số HĐ khung", "Ngày ký HĐ khung",
 ]
 
 
@@ -709,7 +711,8 @@ def orders_import_template():
          "Năm trăm triệu đồng chẵn", "503100000", "Năm trăm lẻ ba triệu một trăm nghìn đồng chẵn",
          "SAMCH2126005", "SAMCH2126005", "Công ty CP ABC", "01/01/2024", "31/12/2028",
          "1250", "1234567890", "Nguyễn Văn A", "MB - Hà Nội",
-         "Nguyễn Văn A", "0901234567", "123 Đường ABC, Hà Nội"],
+         "Nguyễn Văn A", "0901234567", "123 Đường ABC, Hà Nội",
+         "00001/HDKH-KGALAXY.2026", "01/07/2026"],
     ]
     note_fill = PatternFill("solid", fgColor="F0F4FF")
     for ri, row in enumerate(SAMPLE, 2):
@@ -1068,6 +1071,10 @@ def order_detail(id):
         ep = db.get_extension_policy(int(pid))
         if ep:
             data["Chính sách gia hạn"] = ep["ten_chinh_sach"]
+
+    # Luôn hiển thị 2 trường HĐ khung dù chưa có dữ liệu
+    for _f in ("Số HĐ khung", "Ngày ký HĐ khung"):
+        data.setdefault(_f, "")
 
     contracts = [dict(c) for c in db.get_contracts_by_order(id)]
     can_extend, extend_note = _compute_can_extend(data)
