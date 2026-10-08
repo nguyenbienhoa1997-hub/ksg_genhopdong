@@ -851,6 +851,11 @@ def get_bond_lot(id):
         return conn.execute("SELECT * FROM bond_lots WHERE id = ?", (id,)).fetchone()
 
 
+def get_bond_lot_by_ma_vk(ma_vk):
+    with get_db() as conn:
+        return conn.execute("SELECT * FROM bond_lots WHERE ma_vk = ?", (ma_vk.strip(),)).fetchone()
+
+
 def add_bond_lot(ma_vk, ma_vsdc, to_chuc_ph, ngay_ph, ngay_dh, don_gia=0):
     with get_db() as conn:
         cur = conn.execute(

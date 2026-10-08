@@ -369,6 +369,87 @@ def search_customer():
         return jsonify({"_error": str(e)}), 502
 
 
+_CORE_KH_FIELDS = [
+    ("Tên khách hàng",              "ho_ten"),
+    ("Ngày tháng năm Sinh",         "ngay_sinh"),
+    ("Thông tin CMND/CCCD của KH",  "so_cmnd"),
+    ("Ngày cấp",                    "ngay_cap"),
+    ("Nơi cấp",                     "noi_cap"),
+    ("Địa chỉ liên lạc",            "dia_chi"),
+    ("Số điện thoại",               "so_dt"),
+]
+
+
+def _fetch_core_kh(cccd: str):
+    resp = http_req.get(
+        f"{CORE_API_BASE}/api/v1/coreprofile/GetProviderProfileInfoByIdCardNo",
+        headers={"x-api-key": CORE_API_KEY},
+        params={"idCardNo": cccd, "idCard": cccd, "isInogrUser": "true"},
+        timeout=10, verify=False,
+    )
+    if resp.status_code != 200:
+        return None
+    raw = resp.json()
+    if not raw.get("success") or not raw.get("data"):
+        return None
+    d = raw["data"]
+    return {
+        "ho_ten":    d.get("fullName", ""),
+        "ngay_sinh": _fmt_date(d.get("dateOfBirth")),
+        "so_cmnd":   d.get("idCardNo", ""),
+        "ngay_cap":  _fmt_date(d.get("idCardIssuedDate")),
+        "noi_cap":   d.get("idCardIssuedBy", ""),
+        "dia_chi":   d.get("fullAddress", ""),
+        "so_dt":     d.get("phoneNumber", ""),
+    }
+
+
+@app.route("/orders/<int:id>/check-core")
+def order_check_core(id):
+    order = db.get_order(id)
+    if not order:
+        return jsonify({"error": "not found"}), 404
+    data  = json.loads(order["data"] or "{}")
+    cccd  = data.get("Thông tin CMND/CCCD của KH", "").strip()
+    if not cccd:
+        return jsonify({"diff": []})
+    try:
+        core = _fetch_core_kh(cccd)
+    except Exception as e:
+        return jsonify({"error": str(e)}), 502
+    if not core:
+        return jsonify({"diff": []})
+    diff = []
+    for label, key in _CORE_KH_FIELDS:
+        order_val = (data.get(label) or "").strip()
+        core_val  = (core.get(key)   or "").strip()
+        if order_val != core_val:
+            diff.append({"label": label, "order": order_val, "core": core_val})
+    return jsonify({"diff": diff, "core": core})
+
+
+@app.route("/orders/<int:id>/update-from-core", methods=["POST"])
+def order_update_from_core(id):
+    order = db.get_order(id)
+    if not order:
+        return jsonify({"ok": False, "error": "not found"}), 404
+    data  = json.loads(order["data"] or "{}")
+    cccd  = data.get("Thông tin CMND/CCCD của KH", "").strip()
+    if not cccd:
+        return jsonify({"ok": False, "error": "no cccd"})
+    try:
+        core = _fetch_core_kh(cccd)
+    except Exception as e:
+        return jsonify({"ok": False, "error": str(e)}), 502
+    if not core:
+        return jsonify({"ok": False, "error": "core không trả dữ liệu"})
+    for label, key in _CORE_KH_FIELDS:
+        if core.get(key):
+            data[label] = core[key]
+    db.update_order(id, json.dumps(data, ensure_ascii=False))
+    return jsonify({"ok": True})
+
+
 @app.route("/api/upload-excel", methods=["POST"])
 def upload_excel():
     f = request.files.get("excel")
@@ -508,7 +589,38 @@ ORDER_FIELDS = [
     "Số tiền bằng chữ cũ", "Số tiền lãi HĐ cũ", "Số tiền thực nhận bằng chữ cũ",
     "Số tiền trả KH", "Số tiền trả KH bằng chữ", "Lãi trong hạn",
     "_gia_han_chinh_sach_id", "Loại gia hạn", "Kiểu gia hạn",
+    "Tỷ lệ TSĐB thực tế",
 ]
+
+
+def _compute_ty_le_tsdb(data: dict) -> str:
+    """Tính Tỷ lệ TSĐB thực tế = round((SLTP * don_gia / so_tien_vay) * 100).
+    Trả về chuỗi số (VD '125') hoặc '' nếu thiếu dữ liệu."""
+    ma_vk   = (data.get("Mã trái phiếu (theo Văn kiện trái phiếu)") or "").strip()
+    sl_raw  = str(data.get("Số lượng trái phiếu thế chấp") or "").replace(".", "").replace(",", "").strip()
+    stv_raw = str(data.get("Giá trị hợp đồng trái phiếu") or "").replace(".", "").replace(",", "").strip()
+    if not (ma_vk and sl_raw.isdigit() and stv_raw.isdigit() and int(stv_raw) > 0):
+        return ""
+    lot = db.get_bond_lot_by_ma_vk(ma_vk)
+    if not lot or not lot["don_gia"]:
+        return ""
+    ratio = max(100, round((int(sl_raw) * lot["don_gia"]) / int(stv_raw) * 100))
+    return str(ratio)
+
+
+def _compute_ty_le_tsdb_cu(data: dict) -> str:
+    """Tính Tỷ lệ TSĐB thực tế cũ (dùng cho HĐ gia hạn).
+    = round((SLTP * don_gia_cũ / Giá trị hợp đồng cũ) * 100)"""
+    ma_vk_cu = (data.get("Mã TP cũ") or "").strip()
+    sl_raw   = str(data.get("Số lượng trái phiếu thế chấp") or "").replace(".", "").replace(",", "").strip()
+    stv_raw  = str(data.get("Giá trị hợp đồng cũ") or "").replace(".", "").replace(",", "").strip()
+    if not (ma_vk_cu and sl_raw.isdigit() and stv_raw.isdigit() and int(stv_raw) > 0):
+        return ""
+    lot = db.get_bond_lot_by_ma_vk(ma_vk_cu)
+    if not lot or not lot["don_gia"]:
+        return ""
+    ratio = max(100, round((int(sl_raw) * lot["don_gia"]) / int(stv_raw) * 100))
+    return str(ratio)
 
 
 def _compute_can_extend(data):
@@ -1076,6 +1188,10 @@ def order_detail(id):
     for _f in ("Số HĐ khung", "Ngày ký HĐ khung"):
         data.setdefault(_f, "")
 
+    # Tính tỷ lệ TSĐB thực tế để hiển thị
+    data["Tỷ lệ TSĐB thực tế"]     = _compute_ty_le_tsdb(data)
+    data["Tỷ lệ TSĐB thực tế cũ"] = _compute_ty_le_tsdb_cu(data)
+
     contracts = [dict(c) for c in db.get_contracts_by_order(id)]
     can_extend, extend_note = _compute_can_extend(data)
     extend_parent   = db.get_order(order["extended_from_order_id"]) if order["extended_from_order_id"] else None
@@ -1261,6 +1377,10 @@ def order_generate(id):
         _v = str(fmt_data.get(_f, "") or "").strip().replace(".", "").replace(",", "")
         if _v.isdigit():
             fmt_data[_f] = f"{int(_v):,}".replace(",", ".")
+
+    # Tính tỷ lệ TSĐB thực tế để ghép vào mẫu
+    fmt_data["Tỷ lệ TSĐB thực tế"]     = _compute_ty_le_tsdb(row_data)
+    fmt_data["Tỷ lệ TSĐB thực tế cũ"] = _compute_ty_le_tsdb_cu(row_data)
 
     errors, count = [], 0
     for tpl in all_tpls:

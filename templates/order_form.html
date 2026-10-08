@@ -628,12 +628,16 @@ function recalcAll() {
   const laiSuat   = parseFloat((document.getElementById('ls-field')?.value || '').replace(',', '.')) || 0;
   const songay    = parseInt(document.getElementById('h-songay')?.value)   || 0;
 
-  const donGia = (selectedLot?.don_gia || 0);
-  if (amount > 0 && selectedPct > 0 && donGia > 0) {
-    const slTp = Math.ceil(amount * selectedPct / 100 / donGia);
-    document.getElementById('h-sl-tp').value = slTp.toLocaleString('vi-VN');
-  } else {
-    document.getElementById('h-sl-tp').value = '';
+  const donGia    = (selectedLot?.don_gia || 0);
+  const newMaVk   = (selectedLot?.ma_vk || '');
+  const keepSltp  = IS_EXTENSION && MA_VK_CU === 'CIC12601' && newMaVk === 'CIC12601';
+  if (!keepSltp) {
+    if (amount > 0 && selectedPct > 0 && donGia > 0) {
+      const slTp = Math.ceil(amount * selectedPct / 100 / donGia);
+      document.getElementById('h-sl-tp').value = slTp.toLocaleString('vi-VN');
+    } else {
+      document.getElementById('h-sl-tp').value = '';
+    }
   }
 
   if (amount > 0 && laiSuat > 0 && songay > 0) {
@@ -841,6 +845,7 @@ async function fetchNewSeq() {
 
 const IS_EDIT      = {{ 'true' if order else 'false' }};
 const IS_EXTENSION = {{ 'true' if is_extension is defined and is_extension else 'false' }};
+const MA_VK_CU     = {{ data.get('Mã TP cũ', '')|tojson }};
 const EDIT_DATA    = {{ data|tojson }};
 
 // Init Flatpickr cho Ngày đầu tư

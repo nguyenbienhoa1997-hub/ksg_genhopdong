@@ -27,6 +27,31 @@
 </div>
 {% endif %}
 
+{% if is_extension %}
+<div id="core-check-banner" hidden
+     style="background:#fffbeb;border:1px solid #fcd34d;border-radius:10px;padding:14px 18px;margin-bottom:16px;">
+  <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:12px;">
+    <div>
+      <div style="font-weight:600;font-size:13px;color:#92400e;margin-bottom:8px;">⚠️ Thông tin KH trên Core đã thay đổi</div>
+      <table id="core-diff-table" style="font-size:12px;border-collapse:collapse;width:100%;">
+        <thead>
+          <tr>
+            <th style="text-align:left;padding:3px 10px 3px 0;color:#78350f;font-weight:600;white-space:nowrap;">Trường</th>
+            <th style="text-align:left;padding:3px 10px 3px 0;color:#78350f;font-weight:600;">Trong lệnh</th>
+            <th style="text-align:left;padding:3px 0;color:#78350f;font-weight:600;">Trên Core</th>
+          </tr>
+        </thead>
+        <tbody id="core-diff-body"></tbody>
+      </table>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:8px;flex-shrink:0;">
+      <button class="btn btn-primary" style="font-size:12px;padding:5px 14px;" onclick="doUpdateFromCore()">Cập nhật TT</button>
+      <button class="btn btn-ghost"   style="font-size:12px;padding:5px 14px;" onclick="document.getElementById('core-check-banner').hidden=true">Bỏ qua</button>
+    </div>
+  </div>
+</div>
+{% endif %}
+
 <!-- Tabs -->
 <div class="tabs">
   <div class="tab active" id="tab-info"      onclick="switchTab('info')">Thông tin</div>
@@ -132,7 +157,7 @@
           <tr><th style="width:40%;">Trường</th><th>Giá trị</th></tr>
         </thead>
         <tbody>
-          {% set _always_show = ['Số HĐ khung', 'Ngày ký HĐ khung'] %}
+          {% set _always_show = ['Số HĐ khung', 'Ngày ký HĐ khung', 'Tỷ lệ TSĐB thực tế'] %}
           {% for key, val in data.items() %}
           {% if not key.strip().startswith('_') and (val and val.strip() or key.strip() in _always_show) %}
           <tr>
@@ -248,5 +273,38 @@ async function doGenerate() {
 document.getElementById('gen-modal').addEventListener('click', function(e) {
   if (e.target === this) closeGenModal();
 });
+
+{% if is_extension %}
+async function checkCore() {
+  try {
+    const r = await fetch('{{ url_for("order_check_core", id=order.id) }}');
+    const d = await r.json();
+    if (!d.diff || !d.diff.length) return;
+    const tbody = document.getElementById('core-diff-body');
+    tbody.innerHTML = d.diff.map(row =>
+      `<tr>
+        <td style="padding:3px 10px 3px 0;white-space:nowrap;">${row.label}</td>
+        <td style="padding:3px 10px 3px 0;color:#b45309;">${row.order || '(trống)'}</td>
+        <td style="padding:3px 0;color:#15803d;font-weight:600;">${row.core}</td>
+      </tr>`
+    ).join('');
+    document.getElementById('core-check-banner').hidden = false;
+  } catch(e) { /* bỏ qua lỗi mạng */ }
+}
+
+async function doUpdateFromCore() {
+  const btn = event.target;
+  btn.disabled = true; btn.textContent = '⏳ Đang cập nhật...';
+  const r = await fetch('{{ url_for("order_update_from_core", id=order.id) }}', { method: 'POST' });
+  const d = await r.json();
+  if (d.ok) { location.reload(); }
+  else {
+    btn.disabled = false; btn.textContent = 'Cập nhật TT';
+    alert('Lỗi: ' + (d.error || 'Không cập nhật được'));
+  }
+}
+
+window.addEventListener('load', checkCore);
+{% endif %}
 </script>
 {% endblock %}
