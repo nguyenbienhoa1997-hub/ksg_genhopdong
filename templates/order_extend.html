@@ -413,7 +413,14 @@ function recalcAll() {
   const songay    = parseInt(document.getElementById('h-songay')?.value) || 0;
   const donGia    = (selectedLot?.don_gia || 0);
 
-  if (amount > 0 && selectedPct > 0 && donGia > 0) {
+  const newMaVk  = (selectedLot?.ma_vk || '');
+  const oldMaVk  = ORIGINAL_LOT_FIELDS['Mã trái phiếu (theo Văn kiện trái phiếu)'] || '';
+  const keepSltp = oldMaVk === 'CIC12601' && newMaVk === 'CIC12601';
+
+  if (keepSltp) {
+    document.getElementById('h-sl-tp').value    = OLD_SL_TP;
+    document.getElementById('h-sl-tp-cl').value = '';
+  } else if (amount > 0 && selectedPct > 0 && donGia > 0) {
     const newSlTp = Math.ceil(amount * selectedPct / 100 / donGia);
     document.getElementById('h-sl-tp').value = newSlTp.toLocaleString('vi-VN');
     const oldSlTp = parseInt((OLD_SL_TP || '').replace(/[.,\s]/g, '')) || 0;

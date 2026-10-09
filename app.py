@@ -1382,6 +1382,13 @@ def order_generate(id):
     fmt_data["Tỷ lệ TSĐB thực tế"]     = _compute_ty_le_tsdb(row_data)
     fmt_data["Tỷ lệ TSĐB thực tế cũ"] = _compute_ty_le_tsdb_cu(row_data)
 
+    # Mệnh giá lô TP hiện tại
+    _ma_vk = (row_data.get("Mã trái phiếu (theo Văn kiện trái phiếu)") or "").strip()
+    if _ma_vk and not fmt_data.get("Đơn giá (đồng/trái phiếu)"):
+        _lot = db.get_bond_lot_by_ma_vk(_ma_vk)
+        if _lot and _lot["don_gia"]:
+            fmt_data["Đơn giá (đồng/trái phiếu)"] = f"{int(_lot['don_gia']):,}".replace(",", ".")
+
     errors, count = [], 0
     for tpl in all_tpls:
         tpl      = dict(tpl)
