@@ -624,7 +624,7 @@ def _compute_ty_le_tsdb_cu(data: dict) -> str:
 
 
 def _compute_can_extend(data):
-    """Chỉ cho gia hạn khi còn <= 15 ngày tới Ngày đáo hạn HĐ."""
+    """Chỉ cho gia hạn khi còn <= 30 ngày tới Ngày đáo hạn HĐ."""
     ndh_raw = (data.get("Ngày đáo hạn HĐ") or "").strip()
     if not ndh_raw:
         return False, "Chưa có Ngày đáo hạn HĐ."
@@ -633,9 +633,9 @@ def _compute_can_extend(data):
         days_left = (maturity - datetime.now().date()).days
     except ValueError:
         return False, "Không xác định được Ngày đáo hạn HĐ."
-    if days_left <= 15:
+    if days_left <= 30:
         return True, ""
-    return False, f"Chỉ được gia hạn trong vòng 15 ngày trước hạn — còn {days_left - 15} ngày nữa."
+    return False, f"Chỉ được gia hạn trong vòng 30 ngày trước hạn — còn {days_left - 30} ngày nữa."
 
 
 @app.route("/orders")
